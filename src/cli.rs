@@ -1,0 +1,500 @@
+use crate::config::Config;
+use crate::git::GitRepo;
+use crate::metadata::WorktreeMetadata;
+use crate::worktree_set::WorktreeSet;
+use crate::zellij::ZellijSession;
+use anyhow::{Context, Result};
+use clap::{Parser, Subcommand};
+use dialoguer::{Input, Select, theme::ColorfulTheme};
+use std::process::Command;
+
+#[derive(Parser)]
+#[command(name = "maram")]
+#[command(about = "Manage git worktree workflow")]
+pub struct Cli {
+    #[command(subcommand)]
+    pub command: Commands,
+}
+
+#[derive(Subcommand)]
+pub enum Commands {
+    /// Create a new worktree set
+    #[command(alias = "c")]
+    Create {
+        /// Branch name (optional, will prompt if not provided)
+        branch_name: Option<String>,
+    },
+    /// Checkout/switch to a worktree set
+    #[command(alias = "co")]
+    Checkout {
+        /// Branch name (optional, will prompt if not provided)
+        branch_name: Option<String>,
+    },
+    /// Delete a worktree set
+    #[command(alias = "d")]
+    Delete {
+        /// Branch name (optional, will prompt if not provided)
+        branch_name: Option<String>,
+    },
+    /// Show status of current worktree set
+    #[command(alias = "s")]
+    Status,
+    /// Pick a variant to apply to base
+    #[command(alias = "p")]
+    Pick {
+        /// Variant name
+        variant_name: String,
+    },
+    /// Reset base branch to original state
+    #[command(alias = "r")]
+    Reset,
+    /// Diff between variants
+    Diff {
+        /// First variant name
+        variant1: String,
+        /// Second variant name (defaults to base)
+        variant2: Option<String>,
+    },
+}
+
+pub fn handle_create(branch_name: Option<String>) -> Result<()> {
+    let repo = GitRepo::open_from_current_dir()?;
+    let repo_name = repo.get_repo_name()?;
+    let config = Config::load()?;
+
+    // Get branch name
+    let branch_name = if let Some(name) = branch_name {
+        name
+    } else {
+        Input::with_theme(&ColorfulTheme::default())
+            .with_prompt("Branch name")
+            .interact_text()?
+    };
+
+    // Get variants
+    let mut variants = config.default_variants.clone();
+
+    loop {
+        let mut items = vec!["[Done]".to_string()];
+        items.extend(variants.iter().map(|v| format!("[Remove] {}", v)));
+        items.push("[Add new]".to_string());
+
+        let selection = Select::with_theme(&ColorfulTheme::default())
+            .with_prompt("Manage variants")
+            .items(&items)
+            .default(0)
+            .interact()?;
+
+        match selection {
+            0 => break,
+            i if i <= variants.len() => {
+                // Remove variant
+                variants.remove(i - 1);
+            }
+            _ => {
+                // Add new variant
+                let new_variant: String = Input::with_theme(&ColorfulTheme::default())
+                    .with_prompt("New variant name")
+                    .interact_text()?;
+                if !variants.contains(&new_variant) {
+                    variants.push(new_variant);
+                }
+            }
+        }
+    }
+
+    // Create branches
+    let base_branch = branch_name.clone();
+    if !repo.branch_exists(&base_branch) {
+        repo.create_branch(&base_branch)?;
+    }
+
+    let variant_branches: Vec<String> = variants
+        .iter()
+        .map(|v| format!("{}/{}", v, &base_branch))
+        .collect();
+
+    for variant_branch in &variant_branches {
+        if !repo.branch_exists(variant_branch) {
+            repo.create_branch(variant_branch)?;
+        }
+    }
+
+    // Create worktree directories
+    let worktree_dir = WorktreeSet::get_worktree_dir(&repo_name, &branch_name)?;
+    std::fs::create_dir_all(&worktree_dir)?;
+    
+    let base_path = worktree_dir.join("base");
+    repo.add_worktree(&base_path, &base_branch)?;
+
+    let mut variant_paths = std::collections::HashMap::new();
+    for (variant, variant_branch) in variants.iter().zip(variant_branches.iter()) {
+        let variant_path = worktree_dir.join(variant);
+        repo.add_worktree(&variant_path, variant_branch)?;
+        variant_paths.insert(variant.clone(), variant_path);
+    }
+
+    // Get base commit
+    let head = repo.repo().head()?;
+    let base_commit = head.target().unwrap().to_string();
+
+    // Create metadata
+    let mut metadata = WorktreeMetadata::new(branch_name.clone(), variants.clone());
+    metadata.base_path = base_path.clone();
+    metadata.variant_paths = variant_paths;
+    metadata.base_commit = base_commit;
+    metadata.save(&worktree_dir)?;
+
+    // Create zellij session
+    let session_name = format!("{}-{}", repo_name, branch_name);
+    let mut tabs = vec![("base", base_path.as_path())];
+    for variant in &variants {
+        if let Some(path) = metadata.variant_paths.get(variant) {
+            tabs.push((variant.as_str(), path.as_path()));
+        }
+    }
+
+    // Save layout to metadata directory
+    let layout_path = WorktreeMetadata::metadata_dir(&worktree_dir).join("layout.kdl");
+    let session = ZellijSession::new(session_name.clone());
+    session.save_layout(&layout_path, &tabs)?;
+    session.create_session(&tabs)?;
+
+    println!(
+        "Created worktree set '{}' with {} variants",
+        branch_name,
+        variants.len()
+    );
+    println!("Zellij session '{}' created", session_name);
+
+    Ok(())
+}
+
+pub fn handle_checkout(branch_name: Option<String>) -> Result<()> {
+    let repo = GitRepo::open_from_current_dir()?;
+    let repo_name = repo.get_repo_name()?;
+
+    let selected_branch = if let Some(name) = branch_name {
+        name
+    } else {
+        let worktree_sets = WorktreeSet::list_worktree_sets(&repo_name)?;
+
+        if worktree_sets.is_empty() {
+            anyhow::bail!("No worktree sets found for repository '{}'", repo_name);
+        }
+
+        let selection = Select::with_theme(&ColorfulTheme::default())
+            .with_prompt("Select worktree set")
+            .items(&worktree_sets)
+            .default(0)
+            .interact()?;
+
+        worktree_sets[selection].clone()
+    };
+
+    let session_name = format!("{}-{}", repo_name, selected_branch);
+    let session = ZellijSession::new(session_name.clone());
+
+    if session.session_exists() {
+        session.attach_session()?;
+    } else {
+        // Load metadata and recreate session
+        let worktree_set = WorktreeSet::load(&repo_name, &selected_branch)?;
+        let mut tabs = vec![("base", worktree_set.metadata.base_path.as_path())];
+        for (variant, path) in &worktree_set.metadata.variant_paths {
+            tabs.push((variant.as_str(), path.as_path()));
+        }
+
+        // Try to load saved layout, otherwise create new one
+        let layout_path = WorktreeMetadata::metadata_dir(&worktree_set.base_dir).join("layout.kdl");
+        if layout_path.exists() {
+            // Use saved layout
+            use std::process::Command;
+            let status = Command::new("zellij")
+                .args([
+                    "--session",
+                    &session_name,
+                    "--layout",
+                    layout_path.to_str().unwrap(),
+                ])
+                .status()
+                .context("Failed to create zellij session with saved layout")?;
+
+            if !status.success() {
+                anyhow::bail!("Failed to create zellij session");
+            }
+        } else {
+            session.create_session(&tabs)?;
+        }
+    }
+
+    Ok(())
+}
+
+pub fn handle_delete(branch_name: Option<String>) -> Result<()> {
+    let repo = GitRepo::open_from_current_dir()?;
+    let repo_name = repo.get_repo_name()?;
+
+    let selected_branch = if let Some(name) = branch_name {
+        name
+    } else {
+        let worktree_sets = WorktreeSet::list_worktree_sets(&repo_name)?;
+
+        if worktree_sets.is_empty() {
+            anyhow::bail!("No worktree sets found for repository '{}'", repo_name);
+        }
+
+        let selection = Select::with_theme(&ColorfulTheme::default())
+            .with_prompt("Select worktree set to delete")
+            .items(&worktree_sets)
+            .default(0)
+            .interact()?;
+
+        worktree_sets[selection].clone()
+    };
+
+    // Load metadata
+    let worktree_set = WorktreeSet::load(&repo_name, &selected_branch)?;
+
+    // Kill zellij session
+    let session_name = format!("{}-{}", repo_name, selected_branch);
+    let session = ZellijSession::new(session_name);
+    if session.session_exists() {
+        session.kill_session().ok(); // Ignore errors
+    }
+
+    // Remove worktrees
+    repo.remove_worktree(&worktree_set.metadata.base_path)?;
+    for path in worktree_set.metadata.variant_paths.values() {
+        repo.remove_worktree(path)?;
+    }
+
+    // Delete variant branches (keep base branch)
+    for variant_branch in worktree_set.metadata.variants.iter() {
+        let branch_name = format!("{}/{}", variant_branch, &selected_branch);
+        repo.delete_branch(&branch_name).ok(); // Ignore errors if branch doesn't exist
+    }
+
+    // Delete worktree directory
+    std::fs::remove_dir_all(&worktree_set.base_dir)?;
+
+    println!("Deleted worktree set '{}'", selected_branch);
+
+    Ok(())
+}
+
+pub fn handle_status() -> Result<()> {
+    if !WorktreeSet::is_in_worktree_set() {
+        anyhow::bail!("This command must be run from within a worktree set directory");
+    }
+
+    // Find which worktree set we're in
+    let current_dir = std::env::current_dir()?;
+    let maram_dir = WorktreeSet::get_maram_dir()?;
+
+    // Navigate up to find the worktree set directory
+    let mut path = current_dir.clone();
+    while path.starts_with(&maram_dir) && path != maram_dir {
+        if WorktreeMetadata::exists(&path) {
+            let repo = GitRepo::open_from_current_dir()?;
+            let repo_name = repo.get_repo_name()?;
+
+            if let Some(branch_name) = path.file_name().and_then(|n| n.to_str()) {
+                let worktree_set = WorktreeSet::load(&repo_name, branch_name)?;
+
+                println!("Worktree set: {}", worktree_set.metadata.branch_name);
+                println!(
+                    "Number of trees: {}",
+                    worktree_set.metadata.variants.len() + 1
+                );
+                if let Some(picked) = &worktree_set.metadata.current_picked_variant {
+                    println!("Current picked variant: {}", picked);
+                } else {
+                    println!("Current picked variant: (none)");
+                }
+
+                return Ok(());
+            }
+        }
+        path = path.parent().unwrap().to_path_buf();
+    }
+
+    anyhow::bail!("Could not find worktree set metadata");
+}
+
+pub fn handle_pick(variant_name: String) -> Result<()> {
+    if !WorktreeSet::is_in_worktree_set() {
+        anyhow::bail!("This command must be run from within a worktree set directory");
+    }
+
+    // Find worktree set
+    let current_dir = std::env::current_dir()?;
+    let repo = GitRepo::open_from_current_dir()?;
+    let repo_name = repo.get_repo_name()?;
+
+    // Navigate to base directory
+    let mut path = current_dir.clone();
+    while path.starts_with(&WorktreeSet::get_maram_dir()?) {
+        if WorktreeMetadata::exists(&path) {
+            // Use the found directory directly instead of reconstructing it
+            let mut worktree_set = WorktreeSet::load_from_path(&path)?;
+
+            // Check if variant exists
+            if !worktree_set.metadata.variants.contains(&variant_name) {
+                anyhow::bail!("Variant '{}' does not exist", variant_name);
+            }
+
+            // Checkout base branch
+            let base_branch = worktree_set.metadata.branch_name.clone();
+            Command::new("git")
+                .args(["checkout", &base_branch])
+                .current_dir(&worktree_set.metadata.base_path)
+                .status()?;
+
+            // Reset to base commit if there was a previous pick
+            if let Some(prev_picked) = &worktree_set.metadata.current_picked_variant
+                && prev_picked != &variant_name
+            {
+                println!("Resetting base branch to discard previous pick...");
+                let base_commit = worktree_set
+                    .metadata
+                    .base_commit
+                    .parse::<git2::Oid>()
+                    .context("Failed to parse base commit")?;
+                let base_repo = GitRepo::open(&worktree_set.metadata.base_path)?;
+                base_repo.reset_to_commit(base_commit)?;
+            }
+
+            // Get variant branch name
+            let variant_branch = format!("{}/{}", variant_name, base_branch);
+
+            // Check if variant branch has commits
+            let base_commit = worktree_set.metadata.base_commit.clone();
+
+            println!(
+                "Picking variant '{}' (this may have conflicts)...",
+                variant_name
+            );
+            println!(
+                "Warning: This operation is destructive. Conflicts must be resolved manually."
+            );
+
+            // Cherry-pick all commits from variant branch (will squash them with --no-commit)
+            let status = Command::new("git")
+                .args([
+                    "cherry-pick",
+                    "--no-commit",
+                    &format!("{}..{}", base_commit, variant_branch),
+                ])
+                .current_dir(&worktree_set.metadata.base_path)
+                .status()?;
+
+            if !status.success() {
+                println!("Cherry-pick has conflicts. Please resolve them manually.");
+                println!("After resolving, run: git commit");
+                anyhow::bail!("Cherry-pick failed with conflicts");
+            }
+
+            // Commit the squashed changes
+            let commit_status = Command::new("git")
+                .args(["commit", "-m", &format!("Pick variant {}", variant_name)])
+                .current_dir(&worktree_set.metadata.base_path)
+                .status()?;
+
+            if !commit_status.success() {
+                anyhow::bail!("Failed to commit picked changes");
+            }
+
+            // Update metadata
+            worktree_set.metadata.current_picked_variant = Some(variant_name.clone());
+            worktree_set.metadata.save(&worktree_set.base_dir)?;
+
+            println!("Picked variant '{}'", variant_name);
+
+            return Ok(());
+        }
+        path = path.parent().unwrap().to_path_buf();
+    }
+
+    anyhow::bail!("Could not find worktree set metadata");
+}
+
+pub fn handle_reset() -> Result<()> {
+    if !WorktreeSet::is_in_worktree_set() {
+        anyhow::bail!("This command must be run from within a worktree set directory");
+    }
+
+    // Find worktree set
+    let current_dir = std::env::current_dir()?;
+    
+    let mut path = current_dir.clone();
+    while path.starts_with(&WorktreeSet::get_maram_dir()?) {
+        if WorktreeMetadata::exists(&path) {
+            // Use the found directory directly instead of reconstructing it
+            let mut worktree_set = WorktreeSet::load_from_path(&path)?;
+
+            // Reset to base commit
+            let base_commit = worktree_set
+                .metadata
+                .base_commit
+                .parse::<git2::Oid>()
+                .context("Failed to parse base commit")?;
+            let base_repo = GitRepo::open(&worktree_set.metadata.base_path)?;
+            base_repo.reset_to_commit(base_commit)?;
+
+            // Update metadata
+            worktree_set.metadata.current_picked_variant = None;
+            worktree_set.metadata.save(&worktree_set.base_dir)?;
+
+            println!("Reset base branch to original state");
+
+            return Ok(());
+        }
+        path = path.parent().unwrap().to_path_buf();
+    }
+
+    anyhow::bail!("Could not find worktree set metadata");
+}
+
+pub fn handle_diff(variant1: String, variant2: Option<String>) -> Result<()> {
+    if !WorktreeSet::is_in_worktree_set() {
+        anyhow::bail!("This command must be run from within a worktree set directory");
+    }
+
+    // Find worktree set
+    let current_dir = std::env::current_dir()?;
+    let repo = GitRepo::open_from_current_dir()?;
+
+    let mut path = current_dir.clone();
+    while path.starts_with(&WorktreeSet::get_maram_dir()?) {
+        if WorktreeMetadata::exists(&path) {
+            // Use the found directory directly instead of reconstructing it
+            let worktree_set = WorktreeSet::load_from_path(&path)?;
+
+            let base_branch = worktree_set.metadata.branch_name.clone();
+            let branch1 = if variant1 == "base" {
+                base_branch.clone()
+            } else {
+                format!("{}/{}", variant1, base_branch)
+            };
+
+            let branch2 = if let Some(v2) = variant2 {
+                if v2 == "base" {
+                    base_branch.clone()
+                } else {
+                    format!("{}/{}", v2, base_branch)
+                }
+            } else {
+                base_branch
+            };
+
+            let diff = repo.get_diff(&branch1, &branch2)?;
+            println!("{}", diff);
+
+            return Ok(());
+        }
+        path = path.parent().unwrap().to_path_buf();
+    }
+
+    anyhow::bail!("Could not find worktree set metadata");
+}
