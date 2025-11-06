@@ -199,8 +199,11 @@ pub fn handle_create(
     };
 
     let base_branch = branch_name.clone();
-    if !repo.branch_exists(&base_branch) {
-        repo.create_branch(&base_branch)?;
+    if repo.branch_exists(&base_branch) {
+        anyhow::bail!(
+            "Branch '{}' already exists. Use a different branch name or delete the existing branch first.",
+            base_branch
+        );
     }
 
     let variant_branches: Vec<String> = variants
@@ -209,9 +212,18 @@ pub fn handle_create(
         .collect();
 
     for variant_branch in &variant_branches {
-        if !repo.branch_exists(variant_branch) {
-            repo.create_branch(variant_branch)?;
+        if repo.branch_exists(variant_branch) {
+            anyhow::bail!(
+                "Branch '{}' already exists. Use a different variant name or delete the existing branch first.",
+                variant_branch
+            );
         }
+    }
+
+    // Create all branches
+    repo.create_branch(&base_branch)?;
+    for variant_branch in &variant_branches {
+        repo.create_branch(variant_branch)?;
     }
 
     // Create worktree directories
