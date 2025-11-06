@@ -101,6 +101,33 @@ pub fn handle_create(branch_name: Option<String>, no_session: bool) -> Result<()
             .interact_text()?
     };
 
+    // Check if worktree set with this branch name already exists
+    let existing_sets = WorktreeSet::list_worktree_sets(&repo_name)?;
+    if existing_sets.contains(&branch_name) {
+        anyhow::bail!(
+            "Worktree set '{}' already exists. Use 'maram checkout {}' to switch to it, or 'maram delete {}' to remove it first.",
+            branch_name,
+            branch_name,
+            branch_name
+        );
+    }
+
+    // Check if worktree directory exists (even without metadata, this could cause issues)
+    let worktree_dir = WorktreeSet::get_worktree_dir(&repo_name, &branch_name)?;
+    if worktree_dir.exists() {
+        // Check if it's empty or has content
+        let is_empty = worktree_dir.read_dir()
+            .map(|mut entries| entries.next().is_none())
+            .unwrap_or(false);
+        
+        if !is_empty {
+            anyhow::bail!(
+                "Directory '{}' already exists and is not empty. Please remove it manually or use a different branch name.",
+                worktree_dir.display()
+            );
+        }
+    }
+
     // Get variants
     let mut variants = config.default_variants.clone();
 
@@ -151,7 +178,6 @@ pub fn handle_create(branch_name: Option<String>, no_session: bool) -> Result<()
     }
 
     // Create worktree directories
-    let worktree_dir = WorktreeSet::get_worktree_dir(&repo_name, &branch_name)?;
     std::fs::create_dir_all(&worktree_dir)?;
 
     let base_path = worktree_dir.join("base");
