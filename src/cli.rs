@@ -296,25 +296,21 @@ pub fn handle_status() -> Result<()> {
     let mut path = current_dir.clone();
     while path.starts_with(&maram_dir) && path != maram_dir {
         if WorktreeMetadata::exists(&path) {
-            let repo = GitRepo::open_from_current_dir()?;
-            let repo_name = repo.get_repo_name()?;
+            // Use the found directory directly instead of reconstructing it
+            let worktree_set = WorktreeSet::load_from_path(&path)?;
 
-            if let Some(branch_name) = path.file_name().and_then(|n| n.to_str()) {
-                let worktree_set = WorktreeSet::load(&repo_name, branch_name)?;
-
-                println!("Worktree set: {}", worktree_set.metadata.branch_name);
-                println!(
-                    "Number of trees: {}",
-                    worktree_set.metadata.variants.len() + 1
-                );
-                if let Some(picked) = &worktree_set.metadata.current_picked_variant {
-                    println!("Current picked variant: {}", picked);
-                } else {
-                    println!("Current picked variant: (none)");
-                }
-
-                return Ok(());
+            println!("Worktree set: {}", worktree_set.metadata.branch_name);
+            println!(
+                "Number of trees: {}",
+                worktree_set.metadata.variants.len() + 1
+            );
+            if let Some(picked) = &worktree_set.metadata.current_picked_variant {
+                println!("Current picked variant: {}", picked);
+            } else {
+                println!("Current picked variant: (none)");
             }
+
+            return Ok(());
         }
         path = path.parent().unwrap().to_path_buf();
     }
