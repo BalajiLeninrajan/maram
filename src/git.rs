@@ -199,4 +199,72 @@ impl GitRepo {
 
         Ok(count > 0)
     }
+
+    /// Checkout a branch in the repository
+    /// If workdir is provided, run the command in that directory; otherwise use the repo's workdir
+    pub fn checkout_branch(&self, branch: &str, workdir: Option<&Path>) -> Result<()> {
+        use std::process::Command;
+
+        let dir = workdir
+            .or_else(|| self.repo.workdir())
+            .unwrap_or_else(|| Path::new("."));
+
+        let status = Command::new("git")
+            .args(["checkout", branch])
+            .current_dir(dir)
+            .status()
+            .context("Failed to execute git checkout")?;
+
+        if !status.success() {
+            anyhow::bail!("git checkout failed");
+        }
+
+        Ok(())
+    }
+
+    /// Cherry-pick commits from one branch to another (without committing)
+    /// Returns true if successful, false if there are conflicts
+    /// If workdir is provided, run the command in that directory; otherwise use the repo's workdir
+    pub fn cherry_pick_commits(
+        &self,
+        from: &str,
+        to: &str,
+        workdir: Option<&Path>,
+    ) -> Result<bool> {
+        use std::process::Command;
+
+        let dir = workdir
+            .or_else(|| self.repo.workdir())
+            .unwrap_or_else(|| Path::new("."));
+
+        let status = Command::new("git")
+            .args(["cherry-pick", "--no-commit", &format!("{}..{}", from, to)])
+            .current_dir(dir)
+            .status()
+            .context("Failed to execute git cherry-pick")?;
+
+        Ok(status.success())
+    }
+
+    /// Commit changes with a message
+    /// If workdir is provided, run the command in that directory; otherwise use the repo's workdir
+    pub fn commit_changes(&self, message: &str, workdir: Option<&Path>) -> Result<()> {
+        use std::process::Command;
+
+        let dir = workdir
+            .or_else(|| self.repo.workdir())
+            .unwrap_or_else(|| Path::new("."));
+
+        let status = Command::new("git")
+            .args(["commit", "-m", message])
+            .current_dir(dir)
+            .status()
+            .context("Failed to execute git commit")?;
+
+        if !status.success() {
+            anyhow::bail!("git commit failed");
+        }
+
+        Ok(())
+    }
 }

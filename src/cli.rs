@@ -377,33 +377,29 @@ pub fn handle_pick(variant_name: Option<String>) -> Result<()> {
         anyhow::bail!("Variant '{}' does not exist", variant_name);
     }
 
-    // Checkout base branch
+    // Open base repo once and reuse it
+    let base_repo = GitRepo::open(&worktree_set.metadata.base_path)?;
     let base_branch = worktree_set.metadata.branch_name.clone();
-    Command::new("git")
-        .args(["checkout", &base_branch])
-        .current_dir(&worktree_set.metadata.base_path)
-        .status()?;
+    let base_commit = worktree_set.metadata.base_commit.clone();
+
+    // Checkout base branch
+    base_repo.checkout_branch(&base_branch, Some(&worktree_set.metadata.base_path))?;
 
     // Reset to base commit if there was a previous pick
     if let Some(prev_picked) = &worktree_set.metadata.current_picked_variant
         && prev_picked != &variant_name
     {
         println!("Resetting base branch to discard previous pick...");
-        let base_commit = worktree_set
-            .metadata
-            .base_commit
+        let base_commit_oid = base_commit
             .parse::<git2::Oid>()
             .context("Failed to parse base commit")?;
-        let base_repo = GitRepo::open(&worktree_set.metadata.base_path)?;
-        base_repo.reset_to_commit(base_commit)?;
+        base_repo.reset_to_commit(base_commit_oid)?;
     }
 
     // Get variant branch name
     let variant_branch = WorktreeSet::format_variant_branch(&variant_name, &base_branch);
 
     // Check if variant branch has commits
-    let base_commit = worktree_set.metadata.base_commit.clone();
-    let base_repo = GitRepo::open(&worktree_set.metadata.base_path)?;
 
     let has_commits = base_repo.has_commits_between(&base_commit, &variant_branch)?;
 
@@ -430,30 +426,23 @@ pub fn handle_pick(variant_name: Option<String>) -> Result<()> {
     println!("Warning: This operation is destructive. Conflicts must be resolved manually.");
 
     // Cherry-pick all commits from variant branch (will squash them with --no-commit)
-    let status = Command::new("git")
-        .args([
-            "cherry-pick",
-            "--no-commit",
-            &format!("{}..{}", base_commit, variant_branch),
-        ])
-        .current_dir(&worktree_set.metadata.base_path)
-        .status()?;
+    let success = base_repo.cherry_pick_commits(
+        &base_commit,
+        &variant_branch,
+        Some(&worktree_set.metadata.base_path),
+    )?;
 
-    if !status.success() {
+    if !success {
         println!("Cherry-pick has conflicts. Please resolve them manually.");
         println!("After resolving, run: git commit");
         anyhow::bail!("Cherry-pick failed with conflicts");
     }
 
     // Commit the squashed changes
-    let commit_status = Command::new("git")
-        .args(["commit", "-m", &format!("Pick variant {}", variant_name)])
-        .current_dir(&worktree_set.metadata.base_path)
-        .status()?;
-
-    if !commit_status.success() {
-        anyhow::bail!("Failed to commit picked changes");
-    }
+    base_repo.commit_changes(
+        &format!("Pick variant {}", variant_name),
+        Some(&worktree_set.metadata.base_path),
+    )?;
 
     // Update metadata
     worktree_set.metadata.current_picked_variant = Some(variant_name.clone());
