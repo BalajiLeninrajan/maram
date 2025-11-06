@@ -8,7 +8,6 @@ pub struct Config {
     pub default_variants: Vec<String>,
     #[serde(default)]
     pub no_session: bool,
-    /// Default template for Zellij layouts (KDL format)
     #[serde(default)]
     pub prefix_zellij_layout: Option<String>,
 }
@@ -59,7 +58,6 @@ impl Config {
             ),
         };
 
-        // Write default config to file with exact format
         let toml_content = r#"default_variants = []
 
 no_session = false
@@ -83,7 +81,7 @@ default_tab_template {
     }
 
     pub fn config_path() -> Result<PathBuf> {
-        // Use ~/.config/maram/config.toml for consistency across platforms
+        // Use ~/.config/maram/config.toml
         let home = dirs::home_dir().context("Failed to find home directory")?;
         let dot_config_path = home.join(".config").join("maram").join("config.toml");
 

@@ -9,7 +9,6 @@ pub struct ZellijSession {
 }
 
 impl ZellijSession {
-    /// Generate a session name from repo name and branch name
     pub fn session_name(repo_name: &str, branch_name: &str) -> String {
         format!("{}-{}", repo_name, branch_name)
     }
@@ -18,12 +17,10 @@ impl ZellijSession {
         ZellijSession { session_name }
     }
 
-    /// Create a new session from repo and branch name
     pub fn from_repo_and_branch(repo_name: &str, branch_name: &str) -> Self {
         Self::new(Self::session_name(repo_name, branch_name))
     }
 
-    /// Get the session name
     pub fn name(&self) -> &str {
         &self.session_name
     }
@@ -41,8 +38,6 @@ impl ZellijSession {
         false
     }
 
-    /// Create a new session with a layout
-    /// If layout_path is provided, use it directly; otherwise generate a layout from tabs
     pub fn create_session(&self, tabs: &[(&str, &Path)], layout_path: Option<&Path>) -> Result<()> {
         let layout_file = if let Some(layout_path) = layout_path {
             layout_path.to_path_buf()
@@ -54,7 +49,6 @@ impl ZellijSession {
             temp_layout
         };
 
-        // Create new session with layout
         let status = Command::new("zellij")
             .args([
                 "--session",
@@ -111,7 +105,6 @@ impl ZellijSession {
         if let Ok(config) = Config::load()
             && let Some(template) = &config.prefix_zellij_layout
         {
-            // Indent each line of the template by 2 spaces
             let indented_template: String = template
                 .lines()
                 .map(|line| {
@@ -147,7 +140,6 @@ impl ZellijSession {
         Ok(())
     }
 
-    /// Build tabs from worktree metadata
     pub fn tabs_from_metadata(metadata: &WorktreeMetadata) -> Vec<(&str, &Path)> {
         let mut tabs = vec![(BASE_VARIANT, metadata.base_path.as_path())];
         for (variant, path) in &metadata.variant_paths {
@@ -156,7 +148,6 @@ impl ZellijSession {
         tabs
     }
 
-    /// Create or attach to a session, using saved layout if available
     pub fn create_or_attach_with_layout(
         &self,
         tabs: &[(&str, &Path)],
@@ -165,7 +156,6 @@ impl ZellijSession {
         if self.session_exists() {
             self.attach_session()?;
         } else {
-            // Use saved layout if it exists, otherwise generate from tabs
             let layout_to_use = if let Some(layout_path) = layout_path
                 && layout_path.exists()
             {

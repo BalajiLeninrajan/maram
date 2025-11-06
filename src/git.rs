@@ -43,8 +43,6 @@ impl GitRepo {
             && let Ok(maram_dir) = crate::worktree_set::WorktreeSet::get_maram_dir()
             && current_dir.starts_with(&maram_dir)
         {
-            // We're in a maram directory, extract repo name from path
-            // ~/maram/<repo_name>/<branch_name>/...
             let relative = current_dir
                 .strip_prefix(&maram_dir)
                 .ok()
@@ -60,12 +58,7 @@ impl GitRepo {
         // We need to get the main repository path
         let git_path = self.repo.path();
 
-        // Check if we're in a worktree (worktrees have .git as a file, not a directory)
-        // But git2's repo.path() for worktrees points to .git/worktrees/<name>/
-        // We can detect this by checking if the path contains "worktrees"
         let main_repo_path = if git_path.to_string_lossy().contains("worktrees") {
-            // For worktrees, navigate up to find the main .git directory
-            // .git/worktrees/<name>/ -> .git/ -> repository root
             git_path
                 .parent() // .git/worktrees/<name>/
                 .and_then(|p| p.parent()) // .git/worktrees/
@@ -73,7 +66,6 @@ impl GitRepo {
                 .and_then(|p| p.parent()) // repository root
                 .unwrap_or_else(|| git_path.parent().unwrap_or(Path::new(".")))
         } else {
-            // Regular repository, .git is in the repo root
             git_path.parent().unwrap_or(Path::new("."))
         };
 
@@ -200,8 +192,6 @@ impl GitRepo {
         Ok(count > 0)
     }
 
-    /// Checkout a branch in the repository
-    /// If workdir is provided, run the command in that directory; otherwise use the repo's workdir
     pub fn checkout_branch(&self, branch: &str, workdir: Option<&Path>) -> Result<()> {
         use std::process::Command;
 
@@ -222,9 +212,6 @@ impl GitRepo {
         Ok(())
     }
 
-    /// Cherry-pick commits from one branch to another (without committing)
-    /// Returns true if successful, false if there are conflicts
-    /// If workdir is provided, run the command in that directory; otherwise use the repo's workdir
     pub fn cherry_pick_commits(
         &self,
         from: &str,
@@ -246,8 +233,6 @@ impl GitRepo {
         Ok(status.success())
     }
 
-    /// Commit changes with a message
-    /// If workdir is provided, run the command in that directory; otherwise use the repo's workdir
     pub fn commit_changes(&self, message: &str, workdir: Option<&Path>) -> Result<()> {
         use std::process::Command;
 

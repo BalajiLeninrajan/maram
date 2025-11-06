@@ -66,7 +66,6 @@ pub enum Commands {
     },
 }
 
-/// Interactive selection from a list of items
 fn select_from_list(items: &[String], prompt: &str) -> Result<String> {
     if items.is_empty() {
         anyhow::bail!("No items available to select from");
@@ -81,7 +80,6 @@ fn select_from_list(items: &[String], prompt: &str) -> Result<String> {
     Ok(items[selection].clone())
 }
 
-/// Interactive selection of a worktree set
 fn select_worktree_set(repo_name: &str, prompt: &str) -> Result<String> {
     let worktree_sets = WorktreeSet::list_worktree_sets(repo_name)?;
 
@@ -92,7 +90,6 @@ fn select_worktree_set(repo_name: &str, prompt: &str) -> Result<String> {
     select_from_list(&worktree_sets, prompt)
 }
 
-/// Interactive UI for managing variants
 fn manage_variants_interactive(default_variants: Vec<String>) -> Result<Vec<String>> {
     let mut variants = default_variants;
 
@@ -128,7 +125,6 @@ fn manage_variants_interactive(default_variants: Vec<String>) -> Result<Vec<Stri
     Ok(variants)
 }
 
-/// Drop into an interactive shell in the specified directory
 fn drop_into_shell(target_dir: &std::path::Path) -> Result<()> {
     std::env::set_current_dir(target_dir)
         .with_context(|| format!("Failed to change directory to {}", target_dir.display()))?;
@@ -162,7 +158,6 @@ pub fn handle_create(
     let config = Config::load()?;
     let no_session = no_session.unwrap_or(config.no_session);
 
-    // Get branch name
     let branch_name = if let Some(name) = branch_name {
         name
     } else {
@@ -171,7 +166,6 @@ pub fn handle_create(
             .interact_text()?
     };
 
-    // Check if worktree set with this branch name already exists
     let existing_sets = WorktreeSet::list_worktree_sets(&repo_name)?;
     if existing_sets.contains(&branch_name) {
         anyhow::bail!(
@@ -182,7 +176,6 @@ pub fn handle_create(
         );
     }
 
-    // Check if worktree directory exists (even without metadata, this could cause issues)
     let worktree_dir = WorktreeSet::get_worktree_dir(&repo_name, &branch_name)?;
     if worktree_dir.exists() {
         // Check if it's empty or has content
@@ -199,16 +192,12 @@ pub fn handle_create(
         }
     }
 
-    // Get variants
     let variants = if let Some(cli_variants) = cli_variants {
-        // Use variants from command line, skip interactive TUI
         cli_variants
     } else {
-        // Use interactive TUI to manage variants
         manage_variants_interactive(config.default_variants.clone())?
     };
 
-    // Create branches
     let base_branch = branch_name.clone();
     if !repo.branch_exists(&base_branch) {
         repo.create_branch(&base_branch)?;
@@ -368,24 +357,20 @@ pub fn handle_status() -> Result<()> {
 pub fn handle_pick(variant_name: Option<String>) -> Result<()> {
     let mut worktree_set = WorktreeSet::find_current()?;
 
-    // Get variant name - either from argument or interactive selection
     let variant_name = if let Some(name) = variant_name {
         name
     } else {
         select_from_list(&worktree_set.metadata.variants, "Select variant to pick")?
     };
 
-    // Check if variant exists
     if !worktree_set.metadata.variants.contains(&variant_name) {
         anyhow::bail!("Variant '{}' does not exist", variant_name);
     }
 
-    // Open base repo once and reuse it
     let base_repo = GitRepo::open(&worktree_set.metadata.base_path)?;
     let base_branch = worktree_set.metadata.branch_name.clone();
     let base_commit = worktree_set.metadata.base_commit.clone();
 
-    // Checkout base branch
     base_repo.checkout_branch(&base_branch, Some(&worktree_set.metadata.base_path))?;
 
     // Reset to base commit if there was a previous pick
@@ -399,19 +384,14 @@ pub fn handle_pick(variant_name: Option<String>) -> Result<()> {
         base_repo.reset_to_commit(base_commit_oid)?;
     }
 
-    // Get variant branch name
+    // Get variant branch
     let variant_branch = WorktreeSet::format_variant_branch(&variant_name, &base_branch);
-
-    // Check if variant branch has commits
 
     let has_commits = base_repo.has_commits_between(&base_commit, &variant_branch)?;
 
     if !has_commits {
         println!("Variant '{}' has no commits to pick.", variant_name);
         println!("The variant branch is at the same commit as the base branch.");
-
-        // Still update metadata to record that this variant was picked
-        // This allows switching between variants even if they have no commits
         worktree_set.metadata.current_picked_variant = Some(variant_name.clone());
         worktree_set.metadata.save(&worktree_set.base_dir)?;
 
@@ -428,7 +408,6 @@ pub fn handle_pick(variant_name: Option<String>) -> Result<()> {
     );
     println!("Warning: This operation is destructive. Conflicts must be resolved manually.");
 
-    // Cherry-pick all commits from variant branch (will squash them with --no-commit)
     let success = base_repo.cherry_pick_commits(
         &base_commit,
         &variant_branch,
@@ -441,13 +420,11 @@ pub fn handle_pick(variant_name: Option<String>) -> Result<()> {
         anyhow::bail!("Cherry-pick failed with conflicts");
     }
 
-    // Commit the squashed changes
     base_repo.commit_changes(
         &format!("Pick variant {}", variant_name),
         Some(&worktree_set.metadata.base_path),
     )?;
 
-    // Update metadata
     worktree_set.metadata.current_picked_variant = Some(variant_name.clone());
     worktree_set.metadata.save(&worktree_set.base_dir)?;
 
@@ -482,7 +459,6 @@ pub fn handle_diff(variant1: String, variant2: Option<String>) -> Result<()> {
         anyhow::bail!("This command must be run from within a worktree set directory");
     }
 
-    // Find worktree set
     let current_dir = std::env::current_dir()?;
     let repo = GitRepo::open_from_current_dir()?;
 
