@@ -71,6 +71,32 @@ fn session_name(repo_name: &str, branch_name: &str) -> String {
     format!("{}-{}", repo_name, branch_name)
 }
 
+/// Interactive selection from a list of items
+fn select_from_list(items: &[String], prompt: &str) -> Result<String> {
+    if items.is_empty() {
+        anyhow::bail!("No items available to select from");
+    }
+
+    let selection = Select::with_theme(&ColorfulTheme::default())
+        .with_prompt(prompt)
+        .items(items)
+        .default(0)
+        .interact()?;
+
+    Ok(items[selection].clone())
+}
+
+/// Interactive selection of a worktree set
+fn select_worktree_set(repo_name: &str, prompt: &str) -> Result<String> {
+    let worktree_sets = WorktreeSet::list_worktree_sets(repo_name)?;
+
+    if worktree_sets.is_empty() {
+        anyhow::bail!("No worktree sets found for repository '{}'", repo_name);
+    }
+
+    select_from_list(&worktree_sets, prompt)
+}
+
 /// Interactive UI for managing variants
 fn manage_variants_interactive(default_variants: Vec<String>) -> Result<Vec<String>> {
     let mut variants = default_variants;
@@ -269,19 +295,7 @@ pub fn handle_checkout(branch_name: Option<String>, no_session: Option<bool>) ->
     let selected_branch = if let Some(name) = branch_name {
         name
     } else {
-        let worktree_sets = WorktreeSet::list_worktree_sets(&repo_name)?;
-
-        if worktree_sets.is_empty() {
-            anyhow::bail!("No worktree sets found for repository '{}'", repo_name);
-        }
-
-        let selection = Select::with_theme(&ColorfulTheme::default())
-            .with_prompt("Select worktree set")
-            .items(&worktree_sets)
-            .default(0)
-            .interact()?;
-
-        worktree_sets[selection].clone()
+        select_worktree_set(&repo_name, "Select worktree set")?
     };
 
     if no_session {
@@ -337,19 +351,7 @@ pub fn handle_delete(branch_name: Option<String>) -> Result<()> {
     let selected_branch = if let Some(name) = branch_name {
         name
     } else {
-        let worktree_sets = WorktreeSet::list_worktree_sets(&repo_name)?;
-
-        if worktree_sets.is_empty() {
-            anyhow::bail!("No worktree sets found for repository '{}'", repo_name);
-        }
-
-        let selection = Select::with_theme(&ColorfulTheme::default())
-            .with_prompt("Select worktree set to delete")
-            .items(&worktree_sets)
-            .default(0)
-            .interact()?;
-
-        worktree_sets[selection].clone()
+        select_worktree_set(&repo_name, "Select worktree set to delete")?
     };
 
     // Load metadata
@@ -406,19 +408,7 @@ pub fn handle_pick(variant_name: Option<String>) -> Result<()> {
     let variant_name = if let Some(name) = variant_name {
         name
     } else {
-        let variants = &worktree_set.metadata.variants;
-
-        if variants.is_empty() {
-            anyhow::bail!("No variants available to pick");
-        }
-
-        let selection = Select::with_theme(&ColorfulTheme::default())
-            .with_prompt("Select variant to pick")
-            .items(variants)
-            .default(0)
-            .interact()?;
-
-        variants[selection].clone()
+        select_from_list(&worktree_set.metadata.variants, "Select variant to pick")?
     };
 
     // Check if variant exists
@@ -476,9 +466,7 @@ pub fn handle_pick(variant_name: Option<String>) -> Result<()> {
         "Picking variant '{}' (this may have conflicts)...",
         variant_name
     );
-    println!(
-        "Warning: This operation is destructive. Conflicts must be resolved manually."
-    );
+    println!("Warning: This operation is destructive. Conflicts must be resolved manually.");
 
     // Cherry-pick all commits from variant branch (will squash them with --no-commit)
     let status = Command::new("git")
