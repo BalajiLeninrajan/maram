@@ -15,7 +15,14 @@ impl Config {
         if config_path.exists() {
             let content = fs::read_to_string(&config_path)
                 .with_context(|| format!("Failed to read config file: {:?}", config_path))?;
-            let config: Config = toml::from_str(&content).context("Failed to parse config file")?;
+            let config: Config = toml::from_str(&content)
+                .with_context(|| {
+                    format!(
+                        "Failed to parse config file at {:?}. Please check the TOML syntax. Content: {}",
+                        config_path,
+                        content
+                    )
+                })?;
             Ok(config)
         } else {
             Ok(Config {
@@ -25,6 +32,16 @@ impl Config {
     }
 
     pub fn config_path() -> Result<PathBuf> {
+        // Prefer ~/.config/maram/config.toml for consistency across platforms
+        // Fall back to platform-specific config directory if ~/.config doesn't exist
+        let home = dirs::home_dir().context("Failed to find home directory")?;
+        let dot_config_path = home.join(".config").join("maram").join("config.toml");
+        
+        if dot_config_path.exists() {
+            return Ok(dot_config_path);
+        }
+        
+        // Fall back to platform-specific config directory
         let config_dir = dirs::config_dir()
             .context("Failed to find config directory")?
             .join("maram");

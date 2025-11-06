@@ -116,10 +116,11 @@ pub fn handle_create(branch_name: Option<String>, no_session: bool) -> Result<()
     let worktree_dir = WorktreeSet::get_worktree_dir(&repo_name, &branch_name)?;
     if worktree_dir.exists() {
         // Check if it's empty or has content
-        let is_empty = worktree_dir.read_dir()
+        let is_empty = worktree_dir
+            .read_dir()
             .map(|mut entries| entries.next().is_none())
             .unwrap_or(false);
-        
+
         if !is_empty {
             anyhow::bail!(
                 "Directory '{}' already exists and is not empty. Please remove it manually or use a different branch name.",
