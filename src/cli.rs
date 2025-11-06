@@ -51,8 +51,8 @@ pub enum Commands {
     /// Pick a variant to apply to base
     #[command(alias = "p")]
     Pick {
-        /// Variant name
-        variant_name: String,
+        /// Variant name (optional, will prompt if not provided)
+        variant_name: Option<String>,
     },
     /// Reset base branch to original state
     #[command(alias = "r")]
@@ -399,8 +399,27 @@ pub fn handle_status() -> Result<()> {
     Ok(())
 }
 
-pub fn handle_pick(variant_name: String) -> Result<()> {
+pub fn handle_pick(variant_name: Option<String>) -> Result<()> {
     let mut worktree_set = WorktreeSet::find_current()?;
+
+    // Get variant name - either from argument or interactive selection
+    let variant_name = if let Some(name) = variant_name {
+        name
+    } else {
+        let variants = &worktree_set.metadata.variants;
+
+        if variants.is_empty() {
+            anyhow::bail!("No variants available to pick");
+        }
+
+        let selection = Select::with_theme(&ColorfulTheme::default())
+            .with_prompt("Select variant to pick")
+            .items(variants)
+            .default(0)
+            .interact()?;
+
+        variants[selection].clone()
+    };
 
     // Check if variant exists
     if !worktree_set.metadata.variants.contains(&variant_name) {
