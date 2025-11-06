@@ -6,6 +6,11 @@ A CLI tool for managing git worktree workflows with variant branches and Zellij 
 
 `maram` helps you create and manage multiple git worktrees for a branch, allowing you to work on different variants simultaneously. It automatically integrates with Zellij to create organized terminal sessions with tabs for each worktree.
 
+## Requirements
+
+- **Git** - Required for worktree management
+- **Zellij** - Required for session management. Install from [zellij.dev](https://zellij.dev) or via your package manager.
+
 ## Installation
 
 ```bash
