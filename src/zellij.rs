@@ -36,8 +36,9 @@ impl ZellijSession {
             .args([
                 "--session",
                 &self.session_name,
-                "--layout",
-                temp_layout.to_str()
+                "--new-session-with-layout",
+                temp_layout
+                    .to_str()
                     .ok_or_else(|| anyhow::anyhow!("Temp layout path contains invalid UTF-8"))?,
             ])
             .status()
@@ -85,7 +86,8 @@ impl ZellijSession {
 
         // Add tabs
         for (tab_name, path) in tabs {
-            let path_str = path.to_str()
+            let path_str = path
+                .to_str()
                 .ok_or_else(|| anyhow::anyhow!("Path contains invalid UTF-8: {:?}", path))?;
             layout.push_str(&format!("  tab \"{}\" {{\n", tab_name));
             layout.push_str(&format!("    pane cwd=\"{}\" command=\"zsh\"\n", path_str));
