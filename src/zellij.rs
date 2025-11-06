@@ -1,3 +1,4 @@
+use crate::config::Config;
 use crate::metadata::{BASE_VARIANT, WorktreeMetadata};
 use anyhow::{Context, Result};
 use std::path::Path;
@@ -105,6 +106,24 @@ impl ZellijSession {
 
     fn create_layout(&self, tabs: &[(&str, &Path)]) -> Result<String> {
         let mut layout = String::from("layout {\n");
+
+        // Add layout prefix from config if provided
+        if let Ok(config) = Config::load()
+            && let Some(template) = &config.prefix_zellij_layout
+        {
+            // Indent each line of the template by 2 spaces
+            let indented_template: String = template
+                .lines()
+                .map(|line| {
+                    if line.trim().is_empty() {
+                        "\n".to_string()
+                    } else {
+                        format!("  {}\n", line)
+                    }
+                })
+                .collect();
+            layout.push_str(&indented_template);
+        }
 
         // Add tabs
         for (tab_name, path) in tabs {

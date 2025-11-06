@@ -8,6 +8,9 @@ pub struct Config {
     pub default_variants: Vec<String>,
     #[serde(default)]
     pub no_session: bool,
+    /// Default template for Zellij layouts (KDL format)
+    #[serde(default)]
+    pub prefix_zellij_layout: Option<String>,
 }
 
 impl Config {
@@ -30,6 +33,7 @@ impl Config {
             Ok(Config {
                 default_variants: Vec::new(),
                 no_session: false,
+                prefix_zellij_layout: None,
             })
         }
     }
@@ -39,11 +43,11 @@ impl Config {
         // Fall back to platform-specific config directory if ~/.config doesn't exist
         let home = dirs::home_dir().context("Failed to find home directory")?;
         let dot_config_path = home.join(".config").join("maram").join("config.toml");
-        
+
         if dot_config_path.exists() {
             return Ok(dot_config_path);
         }
-        
+
         // Fall back to platform-specific config directory
         let config_dir = dirs::config_dir()
             .context("Failed to find config directory")?
