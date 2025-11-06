@@ -30,34 +30,63 @@ impl Config {
                 })?;
             Ok(config)
         } else {
-            Ok(Config {
-                default_variants: Vec::new(),
-                no_session: false,
-                prefix_zellij_layout: None,
-            })
+            Self::create_default_config(&config_path)
         }
     }
 
+    fn create_default_config(config_path: &PathBuf) -> Result<Config> {
+        // Create directory structure if it doesn't exist
+        if let Some(parent) = config_path.parent() {
+            fs::create_dir_all(parent)
+                .with_context(|| format!("Failed to create config directory: {:?}", parent))?;
+        }
+
+        // Create default config
+        let default_config = Config {
+            default_variants: Vec::new(),
+            no_session: false,
+            prefix_zellij_layout: Some(
+                r#"default_tab_template {
+  pane size=1 borderless=true {
+      plugin location="zellij:tab-bar"
+  }
+  children
+  pane size=2 borderless=true {
+      plugin location="zellij:status-bar"
+  }
+}"#
+                .to_string(),
+            ),
+        };
+
+        // Write default config to file with exact format
+        let toml_content = r#"default_variants = []
+
+no_session = false
+
+prefix_zellij_layout = """
+default_tab_template {
+  pane size=1 borderless=true {
+      plugin location="zellij:tab-bar"
+  }
+  children
+  pane size=2 borderless=true {
+      plugin location="zellij:status-bar"
+  }
+}
+"""
+"#;
+        fs::write(config_path, toml_content)
+            .with_context(|| format!("Failed to write config file: {:?}", config_path))?;
+
+        Ok(default_config)
+    }
+
     pub fn config_path() -> Result<PathBuf> {
-        // Prefer ~/.config/maram/config.toml for consistency across platforms
-        // Fall back to platform-specific config directory if ~/.config doesn't exist
+        // Use ~/.config/maram/config.toml for consistency across platforms
         let home = dirs::home_dir().context("Failed to find home directory")?;
         let dot_config_path = home.join(".config").join("maram").join("config.toml");
 
-        if dot_config_path.exists() {
-            return Ok(dot_config_path);
-        }
-
-        // Fall back to platform-specific config directory
-        let config_dir = dirs::config_dir()
-            .context("Failed to find config directory")?
-            .join("maram");
-
-        if !config_dir.exists() {
-            fs::create_dir_all(&config_dir)
-                .with_context(|| format!("Failed to create config directory: {:?}", config_dir))?;
-        }
-
-        Ok(config_dir.join("config.toml"))
+        Ok(dot_config_path)
     }
 }
