@@ -1,6 +1,6 @@
 use crate::config::Config;
 use crate::git::GitRepo;
-use crate::metadata::{BASE_VARIANT, LAYOUT_FILE, WorktreeMetadata};
+use crate::metadata::{LAYOUT_FILE, WorktreeMetadata};
 use crate::worktree_set::WorktreeSet;
 use crate::zellij::ZellijSession;
 use anyhow::{Context, Result};
@@ -64,11 +64,6 @@ pub enum Commands {
         /// Second variant name (defaults to base)
         variant2: Option<String>,
     },
-}
-
-/// Generate a session name from repo name and branch name
-fn session_name(repo_name: &str, branch_name: &str) -> String {
-    format!("{}-{}", repo_name, branch_name)
 }
 
 /// Interactive selection from a list of items
@@ -267,21 +262,15 @@ pub fn handle_create(
     }
 
     // Create zellij session
-    let session_name = session_name(&repo_name, &branch_name);
-    let mut tabs = vec![(BASE_VARIANT, base_path.as_path())];
-    for variant in &variants {
-        if let Some(path) = metadata.variant_paths.get(variant) {
-            tabs.push((variant.as_str(), path.as_path()));
-        }
-    }
+    let session = ZellijSession::from_repo_and_branch(&repo_name, &branch_name);
+    let tabs = ZellijSession::tabs_from_metadata(&metadata);
 
     // Save layout to metadata directory
     let layout_path = WorktreeMetadata::metadata_dir(&worktree_dir).join(LAYOUT_FILE);
-    let session = ZellijSession::new(session_name.clone());
     session.save_layout(&layout_path, &tabs)?;
-    session.create_session(&tabs)?;
+    session.create_session(&tabs, Some(&layout_path))?;
 
-    println!("Zellij session '{}' created", session_name);
+    println!("Zellij session '{}' created", session.name());
 
     Ok(())
 }
@@ -305,41 +294,14 @@ pub fn handle_checkout(branch_name: Option<String>, no_session: Option<bool>) ->
         return Ok(());
     }
 
-    let session_name = session_name(&repo_name, &selected_branch);
-    let session = ZellijSession::new(session_name.clone());
+    // Load metadata and create/attach session
+    let worktree_set = WorktreeSet::load(&repo_name, &selected_branch)?;
+    let session = ZellijSession::from_repo_and_branch(&repo_name, &selected_branch);
+    let tabs = ZellijSession::tabs_from_metadata(&worktree_set.metadata);
 
-    if session.session_exists() {
-        session.attach_session()?;
-    } else {
-        // Load metadata and recreate session
-        let worktree_set = WorktreeSet::load(&repo_name, &selected_branch)?;
-        let mut tabs = vec![(BASE_VARIANT, worktree_set.metadata.base_path.as_path())];
-        for (variant, path) in &worktree_set.metadata.variant_paths {
-            tabs.push((variant.as_str(), path.as_path()));
-        }
-
-        // Try to load saved layout, otherwise create new one
-        let layout_path = WorktreeMetadata::metadata_dir(&worktree_set.base_dir).join(LAYOUT_FILE);
-        if layout_path.exists() {
-            // Use saved layout
-            use std::process::Command;
-            let status = Command::new("zellij")
-                .args([
-                    "--session",
-                    &session_name,
-                    "--layout",
-                    layout_path.to_str().unwrap(),
-                ])
-                .status()
-                .context("Failed to create zellij session with saved layout")?;
-
-            if !status.success() {
-                anyhow::bail!("Failed to create zellij session");
-            }
-        } else {
-            session.create_session(&tabs)?;
-        }
-    }
+    // Try to load saved layout, otherwise create new one
+    let layout_path = WorktreeMetadata::metadata_dir(&worktree_set.base_dir).join(LAYOUT_FILE);
+    session.create_or_attach_with_layout(&tabs, Some(&layout_path))?;
 
     Ok(())
 }
@@ -358,8 +320,7 @@ pub fn handle_delete(branch_name: Option<String>) -> Result<()> {
     let worktree_set = WorktreeSet::load(&repo_name, &selected_branch)?;
 
     // Kill zellij session
-    let session_name = format!("{}-{}", repo_name, selected_branch);
-    let session = ZellijSession::new(session_name);
+    let session = ZellijSession::from_repo_and_branch(&repo_name, &selected_branch);
     if session.session_exists() {
         session.kill_session().ok(); // Ignore errors
     }
