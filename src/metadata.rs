@@ -3,6 +3,11 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+pub const METADATA_DIR: &str = ".maram";
+pub const METADATA_FILE: &str = "metadata.json";
+pub const LAYOUT_FILE: &str = "layout.kdl";
+pub const BASE_VARIANT: &str = "base";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorktreeMetadata {
     pub branch_name: String,
@@ -26,11 +31,11 @@ impl WorktreeMetadata {
     }
 
     pub fn metadata_dir(worktree_dir: &Path) -> PathBuf {
-        worktree_dir.join(".maram")
+        worktree_dir.join(METADATA_DIR)
     }
 
     pub fn load(worktree_dir: &Path) -> Result<Self> {
-        let metadata_path = Self::metadata_dir(worktree_dir).join("metadata.json");
+        let metadata_path = Self::metadata_dir(worktree_dir).join(METADATA_FILE);
 
         if !metadata_path.exists() {
             anyhow::bail!("Metadata not found at {:?}", metadata_path);
@@ -54,7 +59,7 @@ impl WorktreeMetadata {
             })?;
         }
 
-        let metadata_path = metadata_dir.join("metadata.json");
+        let metadata_path = metadata_dir.join(METADATA_FILE);
         let content = serde_json::to_string_pretty(self).context("Failed to serialize metadata")?;
 
         fs::write(&metadata_path, content)
@@ -65,7 +70,7 @@ impl WorktreeMetadata {
 
     pub fn exists(worktree_dir: &Path) -> bool {
         Self::metadata_dir(worktree_dir)
-            .join("metadata.json")
+            .join(METADATA_FILE)
             .exists()
     }
 }

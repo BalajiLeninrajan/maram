@@ -79,4 +79,31 @@ impl WorktreeSet {
         }
         false
     }
+
+    /// Find the current worktree set by navigating up from the current directory
+    pub fn find_current() -> Result<Self> {
+        if !Self::is_in_worktree_set() {
+            anyhow::bail!("This command must be run from within a worktree set directory");
+        }
+
+        let current_dir = std::env::current_dir()?;
+        let maram_dir = Self::get_maram_dir()?;
+
+        let mut path = current_dir.clone();
+        while path.starts_with(&maram_dir) && path != maram_dir {
+            if WorktreeMetadata::exists(&path) {
+                return Self::load_from_path(&path);
+            }
+            path = path.parent()
+                .ok_or_else(|| anyhow::anyhow!("Reached filesystem root without finding worktree set"))?
+                .to_path_buf();
+        }
+
+        anyhow::bail!("Could not find worktree set metadata");
+    }
+
+    /// Format a variant branch name
+    pub fn format_variant_branch(variant: &str, base_branch: &str) -> String {
+        format!("{}/{}", variant, base_branch)
+    }
 }
