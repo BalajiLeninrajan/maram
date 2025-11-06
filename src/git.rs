@@ -181,4 +181,29 @@ impl GitRepo {
 
         String::from_utf8(output.stdout).context("Failed to parse git diff output")
     }
+
+    pub fn has_commits_between(&self, base: &str, branch: &str) -> Result<bool> {
+        use std::process::Command;
+
+        let output = Command::new("git")
+            .args(["rev-list", "--count", &format!("{}..{}", base, branch)])
+            .output()
+            .context("Failed to execute git rev-list")?;
+
+        if !output.status.success() {
+            // If the command fails, the branch might not exist or there's an issue
+            return Ok(false);
+        }
+
+        let count_str = String::from_utf8(output.stdout)
+            .context("Failed to parse git rev-list output")?
+            .trim()
+            .to_string();
+
+        let count: u32 = count_str
+            .parse()
+            .context("Failed to parse commit count")?;
+
+        Ok(count > 0)
+    }
 }

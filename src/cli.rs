@@ -123,7 +123,7 @@ pub fn handle_create(branch_name: Option<String>) -> Result<()> {
     // Create worktree directories
     let worktree_dir = WorktreeSet::get_worktree_dir(&repo_name, &branch_name)?;
     std::fs::create_dir_all(&worktree_dir)?;
-    
+
     let base_path = worktree_dir.join("base");
     repo.add_worktree(&base_path, &base_branch)?;
 
@@ -329,8 +329,6 @@ pub fn handle_pick(variant_name: String) -> Result<()> {
 
     // Find worktree set
     let current_dir = std::env::current_dir()?;
-    let repo = GitRepo::open_from_current_dir()?;
-    let repo_name = repo.get_repo_name()?;
 
     // Navigate to base directory
     let mut path = current_dir.clone();
@@ -370,6 +368,22 @@ pub fn handle_pick(variant_name: String) -> Result<()> {
 
             // Check if variant branch has commits
             let base_commit = worktree_set.metadata.base_commit.clone();
+            let base_repo = GitRepo::open(&worktree_set.metadata.base_path)?;
+            
+            let has_commits = base_repo.has_commits_between(&base_commit, &variant_branch)?;
+            
+            if !has_commits {
+                println!("Variant '{}' has no commits to pick.", variant_name);
+                println!("The variant branch is at the same commit as the base branch.");
+                
+                // Still update metadata to record that this variant was picked
+                // This allows switching between variants even if they have no commits
+                worktree_set.metadata.current_picked_variant = Some(variant_name.clone());
+                worktree_set.metadata.save(&worktree_set.base_dir)?;
+                
+                println!("Updated metadata to reflect variant '{}' as the current pick.", variant_name);
+                return Ok(());
+            }
 
             println!(
                 "Picking variant '{}' (this may have conflicts)...",
@@ -426,7 +440,7 @@ pub fn handle_reset() -> Result<()> {
 
     // Find worktree set
     let current_dir = std::env::current_dir()?;
-    
+
     let mut path = current_dir.clone();
     while path.starts_with(&WorktreeSet::get_maram_dir()?) {
         if WorktreeMetadata::exists(&path) {
