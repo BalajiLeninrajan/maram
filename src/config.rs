@@ -6,6 +6,8 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub default_variants: Vec<String>,
+    #[serde(default)]
+    pub no_session: bool,
 }
 
 impl Config {
@@ -27,6 +29,7 @@ impl Config {
         } else {
             Ok(Config {
                 default_variants: Vec::new(),
+                no_session: false,
             })
         }
     }

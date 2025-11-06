@@ -25,7 +25,7 @@ pub enum Commands {
         branch_name: Option<String>,
         /// Don't attach to zellij session, just drop into the base worktree directory
         #[arg(long = "no-session", short = 'n')]
-        no_session: bool,
+        no_session: Option<bool>,
     },
     /// Checkout/switch to a worktree set
     #[command(alias = "co")]
@@ -34,7 +34,7 @@ pub enum Commands {
         branch_name: Option<String>,
         /// Don't attach to zellij session, just print the directory path
         #[arg(long = "no-session", short = 'n')]
-        no_session: bool,
+        no_session: Option<bool>,
     },
     /// Delete a worktree set
     #[command(alias = "d")]
@@ -87,10 +87,11 @@ fn drop_into_shell(target_dir: &std::path::Path) -> Result<()> {
     Ok(())
 }
 
-pub fn handle_create(branch_name: Option<String>, no_session: bool) -> Result<()> {
+pub fn handle_create(branch_name: Option<String>, no_session: Option<bool>) -> Result<()> {
     let repo = GitRepo::open_from_current_dir()?;
     let repo_name = repo.get_repo_name()?;
     let config = Config::load()?;
+    let no_session = no_session.unwrap_or(config.no_session);
 
     // Get branch name
     let branch_name = if let Some(name) = branch_name {
@@ -234,9 +235,11 @@ pub fn handle_create(branch_name: Option<String>, no_session: bool) -> Result<()
     Ok(())
 }
 
-pub fn handle_checkout(branch_name: Option<String>, no_session: bool) -> Result<()> {
+pub fn handle_checkout(branch_name: Option<String>, no_session: Option<bool>) -> Result<()> {
     let repo = GitRepo::open_from_current_dir()?;
     let repo_name = repo.get_repo_name()?;
+    let config = Config::load()?;
+    let no_session = no_session.unwrap_or(config.no_session);
 
     let selected_branch = if let Some(name) = branch_name {
         name
