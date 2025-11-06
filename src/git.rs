@@ -37,21 +37,53 @@ impl GitRepo {
             return Ok(name);
         }
 
-        // Fallback to directory name
-        let path = self.repo.path().parent().unwrap_or(Path::new("."));
-        let name = path
+        // Try to detect if we're in a maram worktree directory structure
+        // Path structure: ~/maram/<repo_name>/<branch_name>/...
+        if let Ok(current_dir) = std::env::current_dir()
+            && let Ok(maram_dir) = crate::worktree_set::WorktreeSet::get_maram_dir()
+            && current_dir.starts_with(&maram_dir)
+        {
+            // We're in a maram directory, extract repo name from path
+            // ~/maram/<repo_name>/<branch_name>/...
+            let relative = current_dir
+                .strip_prefix(&maram_dir)
+                .ok()
+                .and_then(|p| p.components().next())
+                .and_then(|c| c.as_os_str().to_str());
+
+            if let Some(repo_name) = relative {
+                return Ok(repo_name.to_string());
+            }
+        }
+
+        // For worktrees, repo.path() points to .git/worktrees/<name>/
+        // We need to get the main repository path
+        let git_path = self.repo.path();
+
+        // Check if we're in a worktree (worktrees have .git as a file, not a directory)
+        // But git2's repo.path() for worktrees points to .git/worktrees/<name>/
+        // We can detect this by checking if the path contains "worktrees"
+        let main_repo_path = if git_path.to_string_lossy().contains("worktrees") {
+            // For worktrees, navigate up to find the main .git directory
+            // .git/worktrees/<name>/ -> .git/ -> repository root
+            git_path
+                .parent() // .git/worktrees/<name>/
+                .and_then(|p| p.parent()) // .git/worktrees/
+                .and_then(|p| p.parent()) // .git/
+                .and_then(|p| p.parent()) // repository root
+                .unwrap_or_else(|| git_path.parent().unwrap_or(Path::new(".")))
+        } else {
+            // Regular repository, .git is in the repo root
+            git_path.parent().unwrap_or(Path::new("."))
+        };
+
+        let name = main_repo_path
             .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("unknown")
             .to_string();
         Ok(name)
     }
-
-    // pub fn get_current_head(&self) -> Result<String> {
-    //     let head = self.repo.head().context("Failed to get HEAD")?;
-    //     let name = head.shorthand().context("HEAD is not a branch")?;
-    //     Ok(name.to_string())
-    // }
 
     pub fn create_branch(&self, name: &str) -> Result<Branch<'_>> {
         let head = self.repo.head().context("Failed to get HEAD")?;
@@ -106,21 +138,6 @@ impl GitRepo {
         Ok(())
     }
 
-    // pub fn list_worktrees(&self) -> Result<Vec<PathBuf>> {
-    //     let mut worktrees = Vec::new();
-    //
-    //     let worktree_names = self.repo.worktrees().context("Failed to list worktrees")?;
-    //
-    //     for name in worktree_names.iter().flatten() {
-    //         if let Ok(worktree) = self.repo.find_worktree(name) {
-    //             let path = worktree.path();
-    //             worktrees.push(PathBuf::from(path));
-    //         }
-    //     }
-    //
-    //     Ok(worktrees)
-    // }
-
     pub fn delete_branch(&self, name: &str) -> Result<()> {
         let mut branch = self
             .repo
@@ -131,28 +148,6 @@ impl GitRepo {
             .with_context(|| format!("Failed to delete branch: {}", name))?;
         Ok(())
     }
-
-    // pub fn get_base_commit_oid(&self) -> Result<git2::Oid> {
-    //     let head = self.repo.head().context("Failed to get HEAD")?;
-    //     let head_commit = head.peel_to_commit().context("Failed to get HEAD commit")?;
-    //     Ok(head_commit.id())
-    // }
-
-    // pub fn cherry_pick(&self, commit_id: git2::Oid) -> Result<()> {
-    //     // Use git command instead for better conflict handling
-    //     use std::process::Command;
-    //
-    //     let status = Command::new("git")
-    //         .args(["cherry-pick", &commit_id.to_string()])
-    //         .status()
-    //         .context("Failed to execute git cherry-pick")?;
-    //
-    //     if !status.success() {
-    //         anyhow::bail!("Cherry-pick failed. Please resolve conflicts manually.");
-    //     }
-    //
-    //     Ok(())
-    // }
 
     pub fn reset_to_commit(&self, commit_id: git2::Oid) -> Result<()> {
         let commit = self
