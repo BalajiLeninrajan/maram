@@ -23,6 +23,9 @@ pub enum Commands {
     Create {
         /// Branch name (optional, will prompt if not provided)
         branch_name: Option<String>,
+        /// Don't attach to zellij session, just drop into the base worktree directory
+        #[arg(long = "no-session", short = 'n')]
+        no_session: bool,
     },
     /// Checkout/switch to a worktree set
     #[command(alias = "co")]
@@ -60,7 +63,31 @@ pub enum Commands {
     },
 }
 
-pub fn handle_create(branch_name: Option<String>) -> Result<()> {
+/// Drop into an interactive shell in the specified directory
+fn drop_into_shell(target_dir: &std::path::Path) -> Result<()> {
+    std::env::set_current_dir(target_dir)
+        .with_context(|| format!("Failed to change directory to {}", target_dir.display()))?;
+
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+    let status = Command::new(&shell)
+        .current_dir(target_dir)
+        .status()
+        .with_context(|| {
+            format!(
+                "Failed to launch interactive shell '{}' in {}",
+                shell,
+                target_dir.display()
+            )
+        })?;
+
+    if !status.success() {
+        anyhow::bail!("Shell exited with a non-zero status");
+    }
+
+    Ok(())
+}
+
+pub fn handle_create(branch_name: Option<String>, no_session: bool) -> Result<()> {
     let repo = GitRepo::open_from_current_dir()?;
     let repo_name = repo.get_repo_name()?;
     let config = Config::load()?;
@@ -148,6 +175,18 @@ pub fn handle_create(branch_name: Option<String>) -> Result<()> {
     metadata.base_commit = base_commit;
     metadata.save(&worktree_dir)?;
 
+    println!(
+        "Created worktree set '{}' with {} variants",
+        branch_name,
+        variants.len()
+    );
+
+    if no_session {
+        // Drop into the base worktree instead of attaching to zellij
+        drop_into_shell(&base_path)?;
+        return Ok(());
+    }
+
     // Create zellij session
     let session_name = format!("{}-{}", repo_name, branch_name);
     let mut tabs = vec![("base", base_path.as_path())];
@@ -163,11 +202,6 @@ pub fn handle_create(branch_name: Option<String>) -> Result<()> {
     session.save_layout(&layout_path, &tabs)?;
     session.create_session(&tabs)?;
 
-    println!(
-        "Created worktree set '{}' with {} variants",
-        branch_name,
-        variants.len()
-    );
     println!("Zellij session '{}' created", session_name);
 
     Ok(())
@@ -198,27 +232,7 @@ pub fn handle_checkout(branch_name: Option<String>, no_session: bool) -> Result<
     if no_session {
         // Drop into the base worktree instead of attaching to zellij
         let worktree_set = WorktreeSet::load(&repo_name, &selected_branch)?;
-        let target_dir = worktree_set.metadata.base_path;
-
-        std::env::set_current_dir(&target_dir)
-            .with_context(|| format!("Failed to change directory to {}", target_dir.display()))?;
-
-        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
-        let status = Command::new(&shell)
-            .current_dir(&target_dir)
-            .status()
-            .with_context(|| {
-                format!(
-                    "Failed to launch interactive shell '{}' in {}",
-                    shell,
-                    target_dir.display()
-                )
-            })?;
-
-        if !status.success() {
-            anyhow::bail!("Shell exited with a non-zero status");
-        }
-
+        drop_into_shell(&worktree_set.metadata.base_path)?;
         return Ok(());
     }
 

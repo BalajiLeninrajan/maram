@@ -16,7 +16,10 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Create { branch_name } => handle_create(branch_name),
+        Commands::Create {
+            branch_name,
+            no_session,
+        } => handle_create(branch_name, no_session),
         Commands::Checkout {
             branch_name,
             no_session,
