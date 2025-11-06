@@ -29,6 +29,9 @@ pub enum Commands {
     Checkout {
         /// Branch name (optional, will prompt if not provided)
         branch_name: Option<String>,
+        /// Don't attach to zellij session, just print the directory path
+        #[arg(long = "no-session", short = 'n')]
+        no_session: bool,
     },
     /// Delete a worktree set
     #[command(alias = "d")]
@@ -170,7 +173,7 @@ pub fn handle_create(branch_name: Option<String>) -> Result<()> {
     Ok(())
 }
 
-pub fn handle_checkout(branch_name: Option<String>) -> Result<()> {
+pub fn handle_checkout(branch_name: Option<String>, no_session: bool) -> Result<()> {
     let repo = GitRepo::open_from_current_dir()?;
     let repo_name = repo.get_repo_name()?;
 
@@ -191,6 +194,33 @@ pub fn handle_checkout(branch_name: Option<String>) -> Result<()> {
 
         worktree_sets[selection].clone()
     };
+
+    if no_session {
+        // Drop into the base worktree instead of attaching to zellij
+        let worktree_set = WorktreeSet::load(&repo_name, &selected_branch)?;
+        let target_dir = worktree_set.metadata.base_path;
+
+        std::env::set_current_dir(&target_dir)
+            .with_context(|| format!("Failed to change directory to {}", target_dir.display()))?;
+
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+        let status = Command::new(&shell)
+            .current_dir(&target_dir)
+            .status()
+            .with_context(|| {
+                format!(
+                    "Failed to launch interactive shell '{}' in {}",
+                    shell,
+                    target_dir.display()
+                )
+            })?;
+
+        if !status.success() {
+            anyhow::bail!("Shell exited with a non-zero status");
+        }
+
+        return Ok(());
+    }
 
     let session_name = format!("{}-{}", repo_name, selected_branch);
     let session = ZellijSession::new(session_name.clone());

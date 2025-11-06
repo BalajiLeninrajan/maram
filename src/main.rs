@@ -17,7 +17,10 @@ fn main() -> Result<()> {
 
     match cli.command {
         Commands::Create { branch_name } => handle_create(branch_name),
-        Commands::Checkout { branch_name } => handle_checkout(branch_name),
+        Commands::Checkout {
+            branch_name,
+            no_session,
+        } => handle_checkout(branch_name, no_session),
         Commands::Delete { branch_name } => handle_delete(branch_name),
         Commands::Status => handle_status(),
         Commands::Pick { variant_name } => handle_pick(variant_name),
