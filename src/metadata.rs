@@ -31,39 +31,41 @@ impl WorktreeMetadata {
 
     pub fn load(worktree_dir: &Path) -> Result<Self> {
         let metadata_path = Self::metadata_dir(worktree_dir).join("metadata.json");
-        
+
         if !metadata_path.exists() {
             anyhow::bail!("Metadata not found at {:?}", metadata_path);
         }
-        
+
         let content = fs::read_to_string(&metadata_path)
             .with_context(|| format!("Failed to read metadata from {:?}", metadata_path))?;
-        
-        let metadata: WorktreeMetadata = serde_json::from_str(&content)
-            .context("Failed to parse metadata")?;
-        
+
+        let metadata: WorktreeMetadata =
+            serde_json::from_str(&content).context("Failed to parse metadata")?;
+
         Ok(metadata)
     }
 
     pub fn save(&self, worktree_dir: &Path) -> Result<()> {
         let metadata_dir = Self::metadata_dir(worktree_dir);
-        
+
         if !metadata_dir.exists() {
-            fs::create_dir_all(&metadata_dir)
-                .with_context(|| format!("Failed to create metadata directory: {:?}", metadata_dir))?;
+            fs::create_dir_all(&metadata_dir).with_context(|| {
+                format!("Failed to create metadata directory: {:?}", metadata_dir)
+            })?;
         }
-        
+
         let metadata_path = metadata_dir.join("metadata.json");
-        let content = serde_json::to_string_pretty(self)
-            .context("Failed to serialize metadata")?;
-        
+        let content = serde_json::to_string_pretty(self).context("Failed to serialize metadata")?;
+
         fs::write(&metadata_path, content)
             .with_context(|| format!("Failed to write metadata to {:?}", metadata_path))?;
-        
+
         Ok(())
     }
 
     pub fn exists(worktree_dir: &Path) -> bool {
-        Self::metadata_dir(worktree_dir).join("metadata.json").exists()
+        Self::metadata_dir(worktree_dir)
+            .join("metadata.json")
+            .exists()
     }
 }

@@ -365,19 +365,22 @@ pub fn handle_pick(variant_name: String) -> Result<()> {
             // Check if variant branch has commits
             let base_commit = worktree_set.metadata.base_commit.clone();
             let base_repo = GitRepo::open(&worktree_set.metadata.base_path)?;
-            
+
             let has_commits = base_repo.has_commits_between(&base_commit, &variant_branch)?;
-            
+
             if !has_commits {
                 println!("Variant '{}' has no commits to pick.", variant_name);
                 println!("The variant branch is at the same commit as the base branch.");
-                
+
                 // Still update metadata to record that this variant was picked
                 // This allows switching between variants even if they have no commits
                 worktree_set.metadata.current_picked_variant = Some(variant_name.clone());
                 worktree_set.metadata.save(&worktree_set.base_dir)?;
-                
-                println!("Updated metadata to reflect variant '{}' as the current pick.", variant_name);
+
+                println!(
+                    "Updated metadata to reflect variant '{}' as the current pick.",
+                    variant_name
+                );
                 return Ok(());
             }
 

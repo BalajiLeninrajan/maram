@@ -200,9 +200,7 @@ impl GitRepo {
             .trim()
             .to_string();
 
-        let count: u32 = count_str
-            .parse()
-            .context("Failed to parse commit count")?;
+        let count: u32 = count_str.parse().context("Failed to parse commit count")?;
 
         Ok(count > 0)
     }

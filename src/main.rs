@@ -7,11 +7,14 @@ mod zellij;
 
 use anyhow::Result;
 use clap::Parser;
-use cli::{Cli, Commands, handle_create, handle_checkout, handle_delete, handle_status, handle_pick, handle_reset, handle_diff};
+use cli::{
+    Cli, Commands, handle_checkout, handle_create, handle_delete, handle_diff, handle_pick,
+    handle_reset, handle_status,
+};
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    
+
     match cli.command {
         Commands::Create { branch_name } => handle_create(branch_name),
         Commands::Checkout { branch_name } => handle_checkout(branch_name),
