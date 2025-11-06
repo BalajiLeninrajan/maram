@@ -26,6 +26,9 @@ pub enum Commands {
         /// Don't attach to zellij session, just drop into the base worktree directory
         #[arg(long = "no-session", short = 'n')]
         no_session: Option<bool>,
+        /// Variants to create (skips interactive TUI). If not provided, uses interactive TUI. If provided with no values, only creates the base branch.
+        #[arg(long = "variants", short='v', num_args = 0..)]
+        variants: Option<Vec<String>>,
     },
     /// Checkout/switch to a worktree set
     #[command(alias = "co")]
@@ -87,7 +90,11 @@ fn drop_into_shell(target_dir: &std::path::Path) -> Result<()> {
     Ok(())
 }
 
-pub fn handle_create(branch_name: Option<String>, no_session: Option<bool>) -> Result<()> {
+pub fn handle_create(
+    branch_name: Option<String>,
+    no_session: Option<bool>,
+    cli_variants: Option<Vec<String>>,
+) -> Result<()> {
     let repo = GitRepo::open_from_current_dir()?;
     let repo_name = repo.get_repo_name()?;
     let config = Config::load()?;
@@ -131,36 +138,43 @@ pub fn handle_create(branch_name: Option<String>, no_session: Option<bool>) -> R
     }
 
     // Get variants
-    let mut variants = config.default_variants.clone();
+    let variants = if let Some(cli_variants) = cli_variants {
+        // Use variants from command line, skip interactive TUI
+        cli_variants
+    } else {
+        // Use interactive TUI to manage variants
+        let mut variants = config.default_variants.clone();
 
-    loop {
-        let mut items = vec!["[Done]".to_string()];
-        items.extend(variants.iter().map(|v| format!("[Remove] {}", v)));
-        items.push("[Add new]".to_string());
+        loop {
+            let mut items = vec!["[Done]".to_string()];
+            items.extend(variants.iter().map(|v| format!("[Remove] {}", v)));
+            items.push("[Add new]".to_string());
 
-        let selection = Select::with_theme(&ColorfulTheme::default())
-            .with_prompt("Manage variants")
-            .items(&items)
-            .default(0)
-            .interact()?;
+            let selection = Select::with_theme(&ColorfulTheme::default())
+                .with_prompt("Manage variants")
+                .items(&items)
+                .default(0)
+                .interact()?;
 
-        match selection {
-            0 => break,
-            i if i <= variants.len() => {
-                // Remove variant
-                variants.remove(i - 1);
-            }
-            _ => {
-                // Add new variant
-                let new_variant: String = Input::with_theme(&ColorfulTheme::default())
-                    .with_prompt("New variant name")
-                    .interact_text()?;
-                if !variants.contains(&new_variant) {
-                    variants.push(new_variant);
+            match selection {
+                0 => break,
+                i if i <= variants.len() => {
+                    // Remove variant
+                    variants.remove(i - 1);
+                }
+                _ => {
+                    // Add new variant
+                    let new_variant: String = Input::with_theme(&ColorfulTheme::default())
+                        .with_prompt("New variant name")
+                        .interact_text()?;
+                    if !variants.contains(&new_variant) {
+                        variants.push(new_variant);
+                    }
                 }
             }
         }
-    }
+        variants
+    };
 
     // Create branches
     let base_branch = branch_name.clone();

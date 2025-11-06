@@ -8,8 +8,8 @@ mod zellij;
 use anyhow::Result;
 use clap::Parser;
 use cli::{
-    Cli, Commands, handle_checkout, handle_create, handle_delete, handle_diff, handle_pick,
-    handle_reset, handle_status,
+    handle_checkout, handle_create, handle_delete, handle_diff, handle_pick, handle_reset,
+    handle_status, Cli, Commands,
 };
 
 fn main() -> Result<()> {
@@ -19,7 +19,8 @@ fn main() -> Result<()> {
         Commands::Create {
             branch_name,
             no_session,
-        } => handle_create(branch_name, no_session),
+            variants,
+        } => handle_create(branch_name, no_session, variants),
         Commands::Checkout {
             branch_name,
             no_session,
