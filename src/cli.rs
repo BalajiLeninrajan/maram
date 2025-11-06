@@ -340,7 +340,10 @@ pub fn handle_delete(branch_name: Option<String>) -> Result<()> {
     // Delete worktree directory
     std::fs::remove_dir_all(&worktree_set.base_dir)?;
 
-    println!("Deleted worktree set '{}'", selected_branch);
+    println!(
+        "Deleted worktree set '{}', base branch still available",
+        selected_branch
+    );
 
     Ok(())
 }
