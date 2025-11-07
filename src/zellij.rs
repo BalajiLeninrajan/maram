@@ -10,6 +10,9 @@ pub struct ZellijSession {
 
 impl ZellijSession {
     pub fn session_name(repo_name: &str, branch_name: &str) -> String {
+        // Sanitize session name: zellij doesn't allow '/' in session names
+        let repo_name = repo_name.replace("/", "-");
+        let branch_name = branch_name.replace("/", "-");
         format!("{}-{}", repo_name, branch_name)
     }
 
