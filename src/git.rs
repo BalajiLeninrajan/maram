@@ -1,10 +1,11 @@
 use anyhow::{Context, Result};
 use git2::{
-    Branch, CherrypickOptions, ErrorCode, IndexAddOption, Repository, Signature, Worktree,
-    WorktreeAddOptions, WorktreePruneOptions,
+    Branch, CherrypickOptions, ErrorCode, IndexAddOption, Repository, Signature,
+    WorktreePruneOptions,
 };
 use std::fs;
 use std::path::Path;
+use std::process::Command;
 
 pub struct GitRepo {
     repo: Repository,
@@ -96,26 +97,38 @@ impl GitRepo {
         self.repo.find_branch(name, git2::BranchType::Local).is_ok()
     }
 
-    pub fn add_worktree(&self, path: &Path, branch: &str) -> Result<Worktree> {
-        let mut opts = WorktreeAddOptions::new();
-        let branch_ref = self
-            .repo
+    pub fn add_worktree(&self, path: &Path, branch: &str) -> Result<()> {
+        self.repo
             .find_branch(branch, git2::BranchType::Local)
             .with_context(|| format!("Branch {} does not exist", branch))?;
-        let reference = branch_ref.into_reference();
-        opts.reference(Some(&reference));
 
-        // Use a sanitized worktree name (replace slashes with dashes) to avoid directory creation issues
-        // The worktree name is used as an identifier in .git/worktrees/, so it can't contain slashes
-        let worktree_name = branch.replace('/', "-");
-
-        let worktree = self
+        let workdir = self
             .repo
-            .worktree(&worktree_name, path, Some(&opts))
-            .with_context(|| {
-                format!("Failed to add worktree for branch {} at {:?}", branch, path)
-            })?;
-        Ok(worktree)
+            .workdir()
+            .map(|p| p.to_path_buf())
+            .ok_or_else(|| anyhow::anyhow!("Repository has no working directory"))?;
+
+        // can't figyre out git2's deal with sparse checkouts
+        let output = Command::new("git")
+            .current_dir(&workdir)
+            .arg("worktree")
+            .arg("add")
+            .arg(path)
+            .arg(branch)
+            .output()
+            .with_context(|| format!("Failed to execute git worktree add for {:?}", path))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            anyhow::bail!(
+                "Failed to add worktree for branch {} at {:?}: {}",
+                branch,
+                path,
+                stderr.trim()
+            );
+        }
+
+        Ok(())
     }
 
     pub fn remove_worktree(&self, path: &Path) -> Result<()> {
