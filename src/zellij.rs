@@ -26,7 +26,10 @@ impl ZellijSession {
     }
 
     pub fn session_exists(&self) -> bool {
-        let output = Command::new("zellij").args(["list-sessions"]).output().ok();
+        let output = Command::new("zellij")
+            .args(["list-sessions", "-s"])
+            .output()
+            .ok();
 
         if let Some(output) = output
             && let Ok(output_str) = String::from_utf8(output.stdout)
