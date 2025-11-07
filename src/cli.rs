@@ -383,6 +383,13 @@ pub fn handle_status() -> Result<()> {
 pub fn handle_pick(variant_name: Option<String>) -> Result<()> {
     let mut worktree_set = WorktreeSet::find_current()?;
 
+    if !worktree_set.is_in_base_worktree()? {
+        anyhow::bail!(
+            "The 'pick' command can only be called from the base branch worktree. \
+            Current directory is not in the base worktree. Please navigate to the base worktree first."
+        );
+    }
+
     let variant_name = if let Some(name) = variant_name {
         name
     } else {
@@ -434,10 +441,7 @@ pub fn handle_pick(variant_name: Option<String>) -> Result<()> {
     );
     println!("Warning: This operation is destructive. Conflicts must be resolved manually.");
 
-    let success = base_repo.cherry_pick_commits(
-        &base_commit,
-        &variant_branch,
-    )?;
+    let success = base_repo.cherry_pick_commits(&base_commit, &variant_branch)?;
 
     if !success {
         println!("Cherry-pick has conflicts. Please resolve them manually.");
@@ -445,9 +449,7 @@ pub fn handle_pick(variant_name: Option<String>) -> Result<()> {
         anyhow::bail!("Cherry-pick failed with conflicts");
     }
 
-    base_repo.commit_changes(
-        &format!("Pick variant {}", variant_name),
-    )?;
+    base_repo.commit_changes(&format!("Pick variant {}", variant_name))?;
 
     worktree_set.metadata.current_picked_variant = Some(variant_name.clone());
     worktree_set.metadata.save(&worktree_set.base_dir)?;

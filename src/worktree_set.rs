@@ -80,7 +80,6 @@ impl WorktreeSet {
         false
     }
 
-    /// Find the current worktree set by navigating up from the current directory
     pub fn find_current() -> Result<Self> {
         if !Self::is_in_worktree_set() {
             anyhow::bail!("This command must be run from within a worktree set directory");
@@ -94,16 +93,34 @@ impl WorktreeSet {
             if WorktreeMetadata::exists(&path) {
                 return Self::load_from_path(&path);
             }
-            path = path.parent()
-                .ok_or_else(|| anyhow::anyhow!("Reached filesystem root without finding worktree set"))?
+            path = path
+                .parent()
+                .ok_or_else(|| {
+                    anyhow::anyhow!("Reached filesystem root without finding worktree set")
+                })?
                 .to_path_buf();
         }
 
         anyhow::bail!("Could not find worktree set metadata");
     }
 
-    /// Format a variant branch name
     pub fn format_variant_branch(variant: &str, base_branch: &str) -> String {
         format!("{}/{}", variant, base_branch)
+    }
+
+    pub fn is_in_base_worktree(&self) -> Result<bool> {
+        let current_dir = std::env::current_dir()?;
+        let base_path = fs::canonicalize(&self.metadata.base_path)
+            .unwrap_or_else(|_| self.metadata.base_path.clone());
+        let current_path = fs::canonicalize(&current_dir).unwrap_or(current_dir);
+
+        Ok(current_path.starts_with(&base_path)
+            && !self.metadata.variant_paths.values().any(|variant_path| {
+                if let Ok(canonical_variant) = fs::canonicalize(variant_path) {
+                    current_path.starts_with(&canonical_variant)
+                } else {
+                    false
+                }
+            }))
     }
 }

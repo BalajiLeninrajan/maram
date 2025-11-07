@@ -236,8 +236,9 @@ impl GitRepo {
     pub fn checkout_branch(&self, branch: &str) -> Result<()> {
         use std::process::Command;
 
-        let dir = self.repo.workdir()
-            .ok_or_else(|| anyhow::anyhow!("Repository has no working directory (bare repository)"))?;
+        let dir = self.repo.workdir().ok_or_else(|| {
+            anyhow::anyhow!("Repository has no working directory (bare repository)")
+        })?;
 
         let status = Command::new("git")
             .args(["checkout", branch])
@@ -252,15 +253,12 @@ impl GitRepo {
         Ok(())
     }
 
-    pub fn cherry_pick_commits(
-        &self,
-        from: &str,
-        to: &str,
-    ) -> Result<bool> {
+    pub fn cherry_pick_commits(&self, from: &str, to: &str) -> Result<bool> {
         use std::process::Command;
 
-        let dir = self.repo.workdir()
-            .ok_or_else(|| anyhow::anyhow!("Repository has no working directory (bare repository)"))?;
+        let dir = self.repo.workdir().ok_or_else(|| {
+            anyhow::anyhow!("Repository has no working directory (bare repository)")
+        })?;
 
         let status = Command::new("git")
             .args(["cherry-pick", "--no-commit", &format!("{}..{}", from, to)])
@@ -274,8 +272,9 @@ impl GitRepo {
     pub fn commit_changes(&self, message: &str) -> Result<()> {
         use std::process::Command;
 
-        let dir = self.repo.workdir()
-            .ok_or_else(|| anyhow::anyhow!("Repository has no working directory (bare repository)"))?;
+        let dir = self.repo.workdir().ok_or_else(|| {
+            anyhow::anyhow!("Repository has no working directory (bare repository)")
+        })?;
 
         let status = Command::new("git")
             .args(["commit", "-m", message])
