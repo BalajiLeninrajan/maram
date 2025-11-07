@@ -397,7 +397,7 @@ pub fn handle_pick(variant_name: Option<String>) -> Result<()> {
     let base_branch = worktree_set.metadata.branch_name.clone();
     let base_commit = worktree_set.metadata.base_commit.clone();
 
-    base_repo.checkout_branch(&base_branch, Some(&worktree_set.metadata.base_path))?;
+    base_repo.checkout_branch(&base_branch)?;
 
     // Reset to base commit if there was a previous pick
     if let Some(prev_picked) = &worktree_set.metadata.current_picked_variant
@@ -437,7 +437,6 @@ pub fn handle_pick(variant_name: Option<String>) -> Result<()> {
     let success = base_repo.cherry_pick_commits(
         &base_commit,
         &variant_branch,
-        Some(&worktree_set.metadata.base_path),
     )?;
 
     if !success {
@@ -448,7 +447,6 @@ pub fn handle_pick(variant_name: Option<String>) -> Result<()> {
 
     base_repo.commit_changes(
         &format!("Pick variant {}", variant_name),
-        Some(&worktree_set.metadata.base_path),
     )?;
 
     worktree_set.metadata.current_picked_variant = Some(variant_name.clone());
