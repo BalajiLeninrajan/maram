@@ -1,5 +1,8 @@
 use anyhow::{Context, Result};
-use git2::{Branch, ErrorCode, Repository, Worktree, WorktreeAddOptions, WorktreePruneOptions};
+use git2::{
+    Branch, CherrypickOptions, ErrorCode, IndexAddOption, Repository, Signature, Worktree,
+    WorktreeAddOptions, WorktreePruneOptions,
+};
 use std::fs;
 use std::path::Path;
 
@@ -211,59 +214,138 @@ impl GitRepo {
     }
 
     pub fn has_commits_between(&self, base: &str, branch: &str) -> Result<bool> {
-        use std::process::Command;
+        let base_oid = self
+            .repo
+            .revparse_single(base)
+            .with_context(|| format!("Failed to resolve base reference: {}", base))?
+            .id();
 
-        let output = Command::new("git")
-            .args(["rev-list", "--count", &format!("{}..{}", base, branch)])
-            .output()
-            .context("Failed to execute git rev-list")?;
+        let branch_oid = self
+            .repo
+            .revparse_single(branch)
+            .with_context(|| format!("Failed to resolve branch reference: {}", branch))?
+            .id();
 
-        if !output.status.success() {
-            // If the command fails, the branch might not exist or there's an issue
+        if base_oid == branch_oid {
             return Ok(false);
         }
 
-        let count_str = String::from_utf8(output.stdout)
-            .context("Failed to parse git rev-list output")?
-            .trim()
-            .to_string();
+        let mut revwalk = self.repo.revwalk().context("Failed to create revwalk")?;
+        revwalk
+            .push(branch_oid)
+            .with_context(|| format!("Failed to push branch {} to revwalk", branch))?;
+        revwalk
+            .hide(base_oid)
+            .with_context(|| format!("Failed to hide base {} from revwalk", base))?;
 
-        let count: u32 = count_str.parse().context("Failed to parse commit count")?;
-
-        Ok(count > 0)
+        let has_commits = revwalk.next().is_some();
+        Ok(has_commits)
     }
 
     pub fn cherry_pick_commits(&self, from: &str, to: &str) -> Result<bool> {
-        use std::process::Command;
+        let from_oid = self
+            .repo
+            .revparse_single(from)
+            .with_context(|| format!("Failed to resolve from reference: {}", from))?
+            .id();
 
-        let dir = self.repo.workdir().ok_or_else(|| {
-            anyhow::anyhow!("Repository has no working directory (bare repository)")
-        })?;
+        let to_oid = self
+            .repo
+            .revparse_single(to)
+            .with_context(|| format!("Failed to resolve to reference: {}", to))?
+            .id();
 
-        let status = Command::new("git")
-            .args(["cherry-pick", "--no-commit", &format!("{}..{}", from, to)])
-            .current_dir(dir)
-            .status()
-            .context("Failed to execute git cherry-pick")?;
+        let mut revwalk = self.repo.revwalk().context("Failed to create revwalk")?;
+        revwalk
+            .push(to_oid)
+            .with_context(|| format!("Failed to push to {} to revwalk", to))?;
+        revwalk
+            .hide(from_oid)
+            .with_context(|| format!("Failed to hide from {} from revwalk", from))?;
 
-        Ok(status.success())
+        // Collect commits in reverse order (oldest first)
+        let mut commits: Vec<git2::Oid> = revwalk
+            .collect::<Result<Vec<_>, _>>()
+            .context("Failed to walk commits")?;
+        commits.reverse();
+
+        let mut opts = CherrypickOptions::new();
+
+        for commit_oid in commits {
+            let commit = self
+                .repo
+                .find_commit(commit_oid)
+                .with_context(|| format!("Failed to find commit {}", commit_oid))?;
+
+            match self.repo.cherrypick(&commit, Some(&mut opts)) {
+                Ok(()) => {}
+                Err(e) if e.code() == ErrorCode::Conflict => {
+                    // Conflicts are expected and should be handled by the caller
+                    return Ok(false);
+                }
+                Err(e) => {
+                    return Err(anyhow::anyhow!(
+                        "Failed to cherry-pick commit {}: {}",
+                        commit_oid,
+                        e
+                    ));
+                }
+            }
+        }
+
+        Ok(true)
     }
 
     pub fn commit_changes(&self, message: &str) -> Result<()> {
-        use std::process::Command;
+        let mut index = self
+            .repo
+            .index()
+            .context("Failed to get repository index")?;
 
-        let dir = self.repo.workdir().ok_or_else(|| {
-            anyhow::anyhow!("Repository has no working directory (bare repository)")
-        })?;
+        index
+            .add_all(["*"], IndexAddOption::DEFAULT, None)
+            .context("Failed to add changes to index")?;
 
-        let status = Command::new("git")
-            .args(["commit", "-m", message])
-            .current_dir(dir)
-            .status()
-            .context("Failed to execute git commit")?;
+        index.write().context("Failed to write index")?;
 
-        if !status.success() {
-            anyhow::bail!("git commit failed");
+        let tree_id = index
+            .write_tree()
+            .context("Failed to write tree from index")?;
+        let tree = self
+            .repo
+            .find_tree(tree_id)
+            .context("Failed to find tree")?;
+
+        let signature = self
+            .repo
+            .signature()
+            .or_else(|_| Signature::now("maram", "maram@maram.local"))
+            .context("Failed to create signature")?;
+
+        // Check if HEAD is unborn (no commits exist)
+        match self.repo.head() {
+            Ok(head) => {
+                // HEAD exists, get the parent commit
+                let parent_commit = head.peel_to_commit().context("Failed to get HEAD commit")?;
+                self.repo
+                    .commit(
+                        Some("HEAD"),
+                        &signature,
+                        &signature,
+                        message,
+                        &tree,
+                        &[&parent_commit],
+                    )
+                    .context("Failed to create commit")?;
+            }
+            Err(e) if e.code() == ErrorCode::UnbornBranch => {
+                self.repo
+                    .commit(Some("HEAD"), &signature, &signature, message, &tree, &[])
+                    .context("Failed to create initial commit")?;
+            }
+            Err(e) => {
+                return Err(anyhow::anyhow!("Failed to get HEAD: {}", e));
+            }
         }
 
         Ok(())
