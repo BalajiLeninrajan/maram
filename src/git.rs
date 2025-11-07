@@ -233,26 +233,6 @@ impl GitRepo {
         Ok(count > 0)
     }
 
-    pub fn checkout_branch(&self, branch: &str) -> Result<()> {
-        use std::process::Command;
-
-        let dir = self.repo.workdir().ok_or_else(|| {
-            anyhow::anyhow!("Repository has no working directory (bare repository)")
-        })?;
-
-        let status = Command::new("git")
-            .args(["checkout", branch])
-            .current_dir(dir)
-            .status()
-            .context("Failed to execute git checkout")?;
-
-        if !status.success() {
-            anyhow::bail!("git checkout failed");
-        }
-
-        Ok(())
-    }
-
     pub fn cherry_pick_commits(&self, from: &str, to: &str) -> Result<bool> {
         use std::process::Command;
 

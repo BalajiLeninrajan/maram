@@ -404,8 +404,6 @@ pub fn handle_pick(variant_name: Option<String>) -> Result<()> {
     let base_branch = worktree_set.metadata.branch_name.clone();
     let base_commit = worktree_set.metadata.base_commit.clone();
 
-    base_repo.checkout_branch(&base_branch)?;
-
     // Reset to base commit if there was a previous pick
     if let Some(prev_picked) = &worktree_set.metadata.current_picked_variant
         && prev_picked != &variant_name
