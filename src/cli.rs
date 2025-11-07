@@ -125,6 +125,18 @@ fn manage_variants_interactive(default_variants: Vec<String>) -> Result<Vec<Stri
     Ok(variants)
 }
 
+fn sanitize_branch_name(name: &str) -> String {
+    name.replace(' ', "-")
+        .chars()
+        .filter(|c| {
+            !matches!(
+                c,
+                '~' | '^' | ':' | '\\' | '?' | '*' | '[' | ']' | '@' | '{' | '}'
+            )
+        })
+        .collect()
+}
+
 fn drop_into_shell(target_dir: &std::path::Path) -> Result<()> {
     std::env::set_current_dir(target_dir)
         .with_context(|| format!("Failed to change directory to {}", target_dir.display()))?;
@@ -165,6 +177,8 @@ pub fn handle_create(
             .with_prompt("Branch name")
             .interact_text()?
     };
+
+    let branch_name = sanitize_branch_name(&branch_name);
 
     let existing_sets = WorktreeSet::list_worktree_sets(&repo_name)?;
     if existing_sets.contains(&branch_name) {
