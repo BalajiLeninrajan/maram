@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
-use git2::{Branch, Repository, Worktree, WorktreeAddOptions};
+use git2::{Branch, ErrorCode, Repository, Worktree, WorktreeAddOptions, WorktreePruneOptions};
+use std::fs;
 use std::path::Path;
 
 pub struct GitRepo {
@@ -115,19 +116,74 @@ impl GitRepo {
     }
 
     pub fn remove_worktree(&self, path: &Path) -> Result<()> {
-        // Git2 doesn't have a direct remove_worktree method, so we'll use git command
-        use std::process::Command;
+        let worktree_path = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+        let worktree_name = Self::find_worktree_name_by_path(&self.repo, &worktree_path)
+            .with_context(|| format!("Failed to find worktree at path: {:?}", path))?;
+        let worktree_name = worktree_name
+            .ok_or_else(|| anyhow::anyhow!("Worktree not found at path: {:?}", path))?;
+        let worktree = self.repo.find_worktree(&worktree_name).with_context(|| {
+            format!(
+                "Failed to load git worktree metadata for `{}`",
+                worktree_name
+            )
+        })?;
 
-        let status = Command::new("git")
-            .args(["worktree", "remove", path.to_str().unwrap()])
-            .status()
-            .context("Failed to execute git worktree remove")?;
+        let mut prune_opts = WorktreePruneOptions::new();
+        prune_opts.valid(true);
+        prune_opts.working_tree(true);
 
-        if !status.success() {
-            anyhow::bail!("git worktree remove failed");
+        worktree
+            .prune(Some(&mut prune_opts))
+            .with_context(|| format!("Failed to remove worktree `{}`", worktree_name))?;
+
+        drop(worktree);
+
+        if worktree_path.exists() {
+            fs::remove_dir_all(&worktree_path).with_context(|| {
+                format!(
+                    "Failed to clean worktree directory `{}`",
+                    worktree_path.display()
+                )
+            })?;
+        }
+        Ok(())
+    }
+
+    fn find_worktree_name_by_path(
+        repo: &Repository,
+        worktree_path: &Path,
+    ) -> Result<Option<String>> {
+        let target = worktree_path
+            .canonicalize()
+            .unwrap_or_else(|_| worktree_path.to_path_buf());
+
+        let names = repo
+            .worktrees()
+            .context("Failed to list repository worktrees")?;
+
+        for name in names.iter().flatten() {
+            let worktree = match repo.find_worktree(name) {
+                Ok(worktree) => worktree,
+                Err(err) if err.code() == ErrorCode::NotFound => continue,
+                Err(err) => {
+                    return Err(anyhow::anyhow!(
+                        "Failed to open git worktree `{}`: {}",
+                        name,
+                        err
+                    ));
+                }
+            };
+
+            let path = worktree
+                .path()
+                .canonicalize()
+                .unwrap_or_else(|_| worktree.path().to_path_buf());
+            if path == target {
+                return Ok(Some(name.to_owned()));
+            }
         }
 
-        Ok(())
+        Ok(None)
     }
 
     pub fn delete_branch(&self, name: &str) -> Result<()> {
