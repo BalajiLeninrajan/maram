@@ -1,12 +1,13 @@
 use crate::config::Config;
 use crate::git::GitRepo;
-use crate::metadata::{LAYOUT_FILE, WorktreeMetadata};
+use crate::metadata::{WorktreeMetadata, LAYOUT_FILE};
 use crate::worktree_set::WorktreeSet;
 use crate::zellij::ZellijSession;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use dialoguer::{Input, Select, theme::ColorfulTheme};
-use std::process::Command;
+use dialoguer::{theme::ColorfulTheme, Input, Select};
+use indicatif::{ProgressBar, ProgressStyle};
+use std::{process::Command, time::Duration};
 
 #[derive(Parser)]
 #[command(name = "maram")]
@@ -160,6 +161,40 @@ fn drop_into_shell(target_dir: &std::path::Path) -> Result<()> {
     Ok(())
 }
 
+fn run_with_spinner<F, T>(
+    start_message: impl Into<String>,
+    success_message: impl Into<String>,
+    action: F,
+) -> Result<T>
+where
+    F: FnOnce() -> Result<T>,
+{
+    let start_message = start_message.into();
+    let success_message = success_message.into();
+
+    let spinner_style = ProgressStyle::with_template("{spinner} {msg}")
+        .expect("spinner template is valid")
+        .tick_strings(&["-", "\\", "|", "/"]);
+
+    let spinner = ProgressBar::new_spinner();
+    spinner.set_style(spinner_style);
+    spinner.set_message(start_message.clone());
+    spinner.enable_steady_tick(Duration::from_millis(120));
+
+    let result = action();
+
+    match result {
+        Ok(value) => {
+            spinner.finish_with_message(success_message);
+            Ok(value)
+        }
+        Err(err) => {
+            spinner.abandon_with_message(format!("{} failed", start_message));
+            Err(err)
+        }
+    }
+}
+
 pub fn handle_create(
     branch_name: Option<String>,
     no_session: Option<bool>,
@@ -244,12 +279,37 @@ pub fn handle_create(
     std::fs::create_dir_all(&worktree_dir)?;
 
     let base_path = worktree_dir.join("base");
-    repo.add_worktree(&base_path, &base_branch)?;
+    run_with_spinner(
+        format!("Creating base worktree for '{}'...", base_branch),
+        format!("Created base worktree at {}", base_path.display()),
+        || {
+            repo.add_worktree(&base_path, &base_branch)?;
+            Ok(())
+        },
+    )?;
 
     let mut variant_paths = std::collections::HashMap::new();
-    for (variant, variant_branch) in variants.iter().zip(variant_branches.iter()) {
+    for (index, (variant, variant_branch)) in
+        variants.iter().zip(variant_branches.iter()).enumerate()
+    {
         let variant_path = worktree_dir.join(variant);
-        repo.add_worktree(&variant_path, variant_branch)?;
+        run_with_spinner(
+            format!(
+                "Creating worktree for variant '{}' ({}/{})...",
+                variant,
+                index + 1,
+                variants.len()
+            ),
+            format!(
+                "Created worktree for variant '{}' at {}",
+                variant,
+                variant_path.display()
+            ),
+            || {
+                repo.add_worktree(&variant_path, variant_branch)?;
+                Ok(())
+            },
+        )?;
         variant_paths.insert(variant.clone(), variant_path);
     }
 
