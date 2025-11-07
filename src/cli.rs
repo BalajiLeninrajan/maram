@@ -486,7 +486,6 @@ pub fn handle_diff(variant1: String, variant2: Option<String>) -> Result<()> {
     }
 
     let current_dir = std::env::current_dir()?;
-    let repo = GitRepo::open_from_current_dir()?;
 
     let mut path = current_dir.clone();
     while path.starts_with(&WorktreeSet::get_maram_dir()?) {
@@ -494,25 +493,48 @@ pub fn handle_diff(variant1: String, variant2: Option<String>) -> Result<()> {
             // Use the found directory directly instead of reconstructing it
             let worktree_set = WorktreeSet::load_from_path(&path)?;
 
-            let base_branch = worktree_set.metadata.branch_name.clone();
-            let branch1 = if variant1 == "base" {
-                base_branch.clone()
+            // Get worktree paths from metadata
+            let worktree_path1 = if variant1 == "base" {
+                worktree_set.metadata.base_path.clone()
             } else {
-                format!("{}/{}", variant1, base_branch)
+                worktree_set
+                    .metadata
+                    .variant_paths
+                    .get(&variant1)
+                    .ok_or_else(|| anyhow::anyhow!("Variant '{}' not found", variant1))?
+                    .clone()
             };
 
-            let branch2 = if let Some(v2) = variant2 {
+            let worktree_path2 = if let Some(v2) = variant2 {
                 if v2 == "base" {
-                    base_branch.clone()
+                    worktree_set.metadata.base_path
                 } else {
-                    format!("{}/{}", v2, base_branch)
+                    worktree_set
+                        .metadata
+                        .variant_paths
+                        .get(&v2)
+                        .ok_or_else(|| anyhow::anyhow!("Variant '{}' not found", v2))?
+                        .clone()
                 }
             } else {
-                base_branch
+                worktree_set.metadata.base_path
             };
 
-            let diff = repo.get_diff(&branch1, &branch2)?;
-            println!("{}", diff);
+            use std::process::Command;
+            let status = Command::new("diff")
+                .args([
+                    "-r",
+                    worktree_path1.to_str().unwrap(),
+                    worktree_path2.to_str().unwrap(),
+                ])
+                .status()
+                .context("Failed to execute diff -r")?;
+
+            // diff returns exit code 1 when differences are found, which is normal
+            // Exit code 0 means no differences, exit code 2 means error
+            if status.code() == Some(2) {
+                anyhow::bail!("diff -r failed");
+            }
 
             return Ok(());
         }

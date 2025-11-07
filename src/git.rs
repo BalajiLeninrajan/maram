@@ -154,21 +154,6 @@ impl GitRepo {
         Ok(())
     }
 
-    pub fn get_diff(&self, branch1: &str, branch2: &str) -> Result<String> {
-        use std::process::Command;
-
-        let output = Command::new("git")
-            .args(["diff", branch1, branch2])
-            .output()
-            .context("Failed to execute git diff")?;
-
-        if !output.status.success() {
-            anyhow::bail!("git diff failed");
-        }
-
-        String::from_utf8(output.stdout).context("Failed to parse git diff output")
-    }
-
     pub fn has_commits_between(&self, base: &str, branch: &str) -> Result<bool> {
         use std::process::Command;
 
