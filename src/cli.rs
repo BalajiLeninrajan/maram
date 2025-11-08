@@ -405,12 +405,6 @@ pub fn handle_delete(branch_name: Option<String>) -> Result<()> {
 
     let worktree_set = WorktreeSet::load(&repo_name, &selected_branch)?;
 
-    // Kill zellij session
-    let session = ZellijSession::from_repo_and_branch(&repo_name, &selected_branch);
-    if session.session_exists() {
-        session.kill_session().ok(); // Ignore errors
-    }
-
     repo.remove_worktree(&worktree_set.metadata.base_path)?;
     for path in worktree_set.metadata.variant_paths.values() {
         repo.remove_worktree(path)?;
@@ -459,6 +453,11 @@ pub fn handle_delete(branch_name: Option<String>) -> Result<()> {
                 Ok(())
             },
         )?;
+    }
+
+    let session = ZellijSession::from_repo_and_branch(&repo_name, &selected_branch);
+    if session.session_exists() {
+        session.kill_session().ok(); // Ignore errors
     }
 
     Ok(())
