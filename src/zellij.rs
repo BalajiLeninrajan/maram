@@ -13,7 +13,10 @@ impl ZellijSession {
         // Sanitize session name: zellij doesn't allow '/' in session names
         let repo_name = repo_name.replace("/", "-");
         let branch_name = branch_name.replace("/", "-");
-        format!("{}-{}", repo_name, branch_name)[..32].to_string()
+        format!("{}-{}", repo_name, branch_name)
+            .chars()
+            .take(32)
+            .collect::<String>()
     }
 
     pub fn new(session_name: String) -> Self {
