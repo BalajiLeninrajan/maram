@@ -5,7 +5,7 @@ use crate::worktree_set::WorktreeSet;
 use crate::zellij::ZellijSession;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use dialoguer::{Input, Select, theme::ColorfulTheme};
+use dialoguer::{Confirm, Input, Select, theme::ColorfulTheme};
 use indicatif::{ProgressBar, ProgressStyle};
 use std::{process::Command, time::Duration};
 
@@ -403,7 +403,6 @@ pub fn handle_delete(branch_name: Option<String>) -> Result<()> {
         select_worktree_set(&repo_name, "Select worktree set to delete")?
     };
 
-    // Load metadata
     let worktree_set = WorktreeSet::load(&repo_name, &selected_branch)?;
 
     // Kill zellij session
@@ -412,25 +411,55 @@ pub fn handle_delete(branch_name: Option<String>) -> Result<()> {
         session.kill_session().ok(); // Ignore errors
     }
 
-    // Remove worktrees
     repo.remove_worktree(&worktree_set.metadata.base_path)?;
     for path in worktree_set.metadata.variant_paths.values() {
         repo.remove_worktree(path)?;
     }
 
-    // Delete variant branches (keep base branch)
-    for variant in worktree_set.metadata.variants.iter() {
+    let variant_count = worktree_set.metadata.variants.len();
+    for (index, variant) in worktree_set.metadata.variants.iter().enumerate() {
         let branch_name = WorktreeSet::format_variant_branch(variant, &selected_branch);
-        repo.delete_branch(&branch_name).ok(); // Ignore errors if branch doesn't exist
+        run_with_spinner(
+            format!(
+                "Deleting branch for variant '{}' ({}/{})...",
+                variant, index, variant_count
+            ),
+            format!("Deleted branch for variant '{}'", variant),
+            || {
+                repo.delete_branch(&branch_name)?;
+                Ok(())
+            },
+        )?;
     }
 
-    // Delete worktree directory
-    std::fs::remove_dir_all(&worktree_set.base_dir)?;
+    run_with_spinner(
+        "Deleting worktree directory",
+        "Deleted worktree directory",
+        || {
+            std::fs::remove_dir_all(&worktree_set.base_dir)?;
+            Ok(())
+        },
+    )?;
 
-    println!(
-        "Deleted worktree set '{}', base branch still available",
-        selected_branch
-    );
+    println!("Deleted worktree set '{}'", selected_branch);
+
+    if Confirm::with_theme(&ColorfulTheme::default())
+        .with_prompt(format!(
+            "Do you want to delete the base branch '{}'?",
+            selected_branch
+        ))
+        .default(false)
+        .interact()?
+    {
+        run_with_spinner(
+            format!("Deleting branch '{}'...", selected_branch),
+            format!("Deleted branch '{}'", selected_branch),
+            || {
+                repo.delete_branch(&selected_branch)?;
+                Ok(())
+            },
+        )?;
+    }
 
     Ok(())
 }
