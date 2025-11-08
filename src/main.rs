@@ -8,8 +8,8 @@ mod zellij;
 use anyhow::Result;
 use clap::Parser;
 use cli::{
-    Cli, Commands, handle_checkout, handle_create, handle_delete, handle_diff, handle_pick,
-    handle_reset, handle_status,
+    Cli, Commands, handle_add, handle_checkout, handle_create, handle_delete, handle_diff,
+    handle_pick, handle_remove, handle_reset, handle_status,
 };
 
 fn main() -> Result<()> {
@@ -30,5 +30,7 @@ fn main() -> Result<()> {
         Commands::Pick { variant_name } => handle_pick(variant_name),
         Commands::Reset => handle_reset(),
         Commands::Diff { variant1, variant2 } => handle_diff(variant1, variant2),
+        Commands::Add { variant_name } => handle_add(variant_name),
+        Commands::Remove { variant_name } => handle_remove(variant_name),
     }
 }

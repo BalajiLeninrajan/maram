@@ -1,11 +1,11 @@
 use crate::config::Config;
 use crate::git::GitRepo;
-use crate::metadata::{WorktreeMetadata, LAYOUT_FILE};
+use crate::metadata::{LAYOUT_FILE, WorktreeMetadata};
 use crate::worktree_set::WorktreeSet;
 use crate::zellij::ZellijSession;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use dialoguer::{theme::ColorfulTheme, Input, Select};
+use dialoguer::{Input, Select, theme::ColorfulTheme};
 use indicatif::{ProgressBar, ProgressStyle};
 use std::{process::Command, time::Duration};
 
@@ -64,6 +64,18 @@ pub enum Commands {
         variant1: String,
         /// Second variant name (defaults to base)
         variant2: Option<String>,
+    },
+    /// Add a new worktree variant to the set
+    #[command(alias = "a")]
+    Add {
+        /// Variant name (optional, will prompt if not provided)
+        variant_name: Option<String>,
+    },
+    /// Remove a worktree variant from the set
+    #[command(alias = "rm")]
+    Remove {
+        /// Variant name (optional, will prompt if not provided)
+        variant_name: Option<String>,
     },
 }
 
@@ -600,4 +612,139 @@ pub fn handle_diff(variant1: String, variant2: Option<String>) -> Result<()> {
     }
 
     anyhow::bail!("Could not find worktree set metadata");
+}
+
+pub fn handle_add(variant_name: Option<String>) -> Result<()> {
+    let mut worktree_set = WorktreeSet::find_current()?;
+    let repo = GitRepo::open_from_current_dir()?;
+    let repo_name = repo.get_repo_name()?;
+
+    let variant_name = if let Some(name) = variant_name {
+        name
+    } else {
+        Input::with_theme(&ColorfulTheme::default())
+            .with_prompt("Variant name")
+            .interact_text()?
+    };
+
+    if worktree_set.metadata.variants.contains(&variant_name) {
+        anyhow::bail!(
+            "Variant '{}' already exists in this worktree set",
+            variant_name
+        );
+    }
+
+    let base_branch = worktree_set.metadata.branch_name.clone();
+    let variant_branch = WorktreeSet::format_variant_branch(&variant_name, &base_branch);
+
+    if repo.branch_exists(&variant_branch) {
+        anyhow::bail!(
+            "Branch '{}' already exists. Use a different variant name or delete the existing branch first.",
+            variant_branch
+        );
+    }
+
+    repo.create_branch(&variant_branch)?;
+
+    let variant_path = worktree_set.base_dir.join(&variant_name);
+    run_with_spinner(
+        format!("Creating worktree for variant '{}'...", variant_name),
+        format!(
+            "Created worktree for variant '{}' at {}",
+            variant_name,
+            variant_path.display()
+        ),
+        || {
+            repo.add_worktree(&variant_path, &variant_branch)?;
+            Ok(())
+        },
+    )?;
+
+    worktree_set.metadata.variants.push(variant_name.clone());
+    worktree_set
+        .metadata
+        .variant_paths
+        .insert(variant_name.clone(), variant_path.clone());
+    worktree_set.metadata.save(&worktree_set.base_dir)?;
+
+    let session = ZellijSession::from_repo_and_branch(&repo_name, &base_branch);
+    if session.session_exists() {
+        let tabs = ZellijSession::tabs_from_metadata(&worktree_set.metadata);
+        let layout_path = WorktreeMetadata::metadata_dir(&worktree_set.base_dir).join(LAYOUT_FILE);
+        session.save_layout(&layout_path, &tabs)?;
+    }
+
+    println!(
+        "Added variant '{}' to worktree set '{}'",
+        variant_name, base_branch
+    );
+
+    Ok(())
+}
+
+pub fn handle_remove(variant_name: Option<String>) -> Result<()> {
+    let mut worktree_set = WorktreeSet::find_current()?;
+    let repo = GitRepo::open_from_current_dir()?;
+    let repo_name = repo.get_repo_name()?;
+
+    let variant_name = if let Some(name) = variant_name {
+        name
+    } else {
+        select_from_list(&worktree_set.metadata.variants, "Select variant to remove")?
+    };
+
+    if !worktree_set.metadata.variants.contains(&variant_name) {
+        anyhow::bail!(
+            "Variant '{}' does not exist in this worktree set",
+            variant_name
+        );
+    }
+
+    let is_picked = worktree_set.metadata.current_picked_variant.as_ref() == Some(&variant_name);
+
+    if is_picked {
+        handle_reset()?;
+        worktree_set = WorktreeSet::find_current()?;
+    }
+
+    let variant_path = worktree_set
+        .metadata
+        .variant_paths
+        .get(&variant_name)
+        .ok_or_else(|| anyhow::anyhow!("Variant path not found for '{}'", variant_name))?
+        .clone();
+
+    run_with_spinner(
+        format!("Removing worktree for variant '{}'...", variant_name),
+        format!("Removed worktree for variant '{}'", variant_name),
+        || {
+            repo.remove_worktree(&variant_path)?;
+            Ok(())
+        },
+    )?;
+
+    let base_branch = worktree_set.metadata.branch_name.clone();
+    let variant_branch = WorktreeSet::format_variant_branch(&variant_name, &base_branch);
+    repo.delete_branch(&variant_branch).ok(); // Ignore errors if branch doesn't exist
+
+    worktree_set
+        .metadata
+        .variants
+        .retain(|v| v != &variant_name);
+    worktree_set.metadata.variant_paths.remove(&variant_name);
+    worktree_set.metadata.save(&worktree_set.base_dir)?;
+
+    let session = ZellijSession::from_repo_and_branch(&repo_name, &base_branch);
+    if session.session_exists() {
+        let tabs = ZellijSession::tabs_from_metadata(&worktree_set.metadata);
+        let layout_path = WorktreeMetadata::metadata_dir(&worktree_set.base_dir).join(LAYOUT_FILE);
+        session.save_layout(&layout_path, &tabs)?;
+    }
+
+    println!(
+        "Removed variant '{}' from worktree set '{}'",
+        variant_name, base_branch
+    );
+
+    Ok(())
 }
