@@ -269,7 +269,7 @@ pub fn handle_create(
 
     let variant_branches: Vec<String> = variants
         .iter()
-        .map(|v| WorktreeSet::format_variant_branch(v, &base_branch))
+        .map(|v| sanitize_branch_name(&WorktreeSet::format_variant_branch(v, &base_branch)))
         .collect();
 
     for variant_branch in &variant_branches {
