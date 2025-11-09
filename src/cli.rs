@@ -269,7 +269,10 @@ pub fn handle_create(
 
     let variant_branches: Vec<String> = variants
         .iter()
-        .map(|v| sanitize_branch_name(&WorktreeSet::format_variant_branch(v, &base_branch)))
+        .map(|v| {
+            let branch_name = WorktreeSet::format_variant_branch(v, &base_branch);
+            sanitize_branch_name(&branch_name)
+        })
         .collect();
 
     for variant_branch in &variant_branches {
@@ -664,6 +667,7 @@ pub fn handle_add(variant_name: Option<String>) -> Result<()> {
 
     let base_branch = worktree_set.metadata.branch_name.clone();
     let variant_branch = WorktreeSet::format_variant_branch(&variant_name, &base_branch);
+    let variant_branch = sanitize_branch_name(&variant_branch);
 
     if repo.branch_exists(&variant_branch) {
         anyhow::bail!(
