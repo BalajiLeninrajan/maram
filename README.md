@@ -50,6 +50,74 @@ A worktree set consists of:
 cargo build --release
 ```
 
+## Configuration
+
+`maram` uses a TOML configuration file located at `~/.config/maram/config.toml`. The configuration file is automatically created with default values the first time you run `maram`.
+
+### Example Config File
+
+```toml
+# Default variants to create when creating a new worktree set
+# If empty, you'll be prompted interactively to select variants
+default_variants = ["approach-a", "approach-b"]
+
+# Whether to skip Zellij session attachment by default
+# Can be overridden with --no-session flag
+no_session = false
+
+# Custom directory for storing worktree sets
+# Defaults to ~/maram if not specified
+# Supports ~ expansion (e.g., "~/maram" or "/custom/path/maram")
+maram_dir = "~/maram"
+
+# Custom Zellij layout template to prefix each tab
+# This template is prepended to each tab in the Zellij session
+# Useful for adding status bars, tab bars, or other UI elements
+prefix_zellij_layout = """
+default_tab_template {
+  pane size=1 borderless=true {
+      plugin location="zellij:tab-bar"
+  }
+  children
+  pane size=2 borderless=true {
+      plugin location="zellij:status-bar"
+  }
+}
+"""
+```
+
+### Configuration Options
+
+- **`default_variants`** (array of strings, default: `[]`)
+  - List of variant names to automatically create when creating a new worktree set
+  - If empty, `maram` will prompt you interactively to select variants
+  - Example: `default_variants = ["approach-a", "approach-b", "experimental"]`
+
+- **`no_session`** (boolean, default: `false`)
+  - If `true`, `maram` will not attach to Zellij sessions by default
+  - Can be overridden per-command using the `--no-session` flag
+  - Useful if you prefer to manage Zellij sessions manually
+
+- **`maram_dir`** (string, optional, default: `~/maram`)
+  - Custom directory path where worktree sets are stored
+  - Supports `~` expansion for home directory
+  - Can be an absolute path (e.g., `/custom/path/maram`) or relative to home (e.g., `~/maram`)
+  - If not specified, defaults to `~/maram`
+
+- **`prefix_zellij_layout`** (string, optional)
+  - Custom Zellij layout template that gets prepended to each tab
+  - Useful for adding UI elements like tab bars, status bars, or custom panes
+  - The template is indented and inserted before the tab content
+  - If not specified, tabs are created without any prefix layout
+
+### Config File Location
+
+The configuration file is located at:
+- **Linux/macOS**: `~/.config/maram/config.toml`
+- **Windows**: `%APPDATA%\maram\config.toml`
+
+If the config file doesn't exist, `maram` will automatically create it with default values on first run.
+
 ## Usage
 
 ### Create a worktree set
