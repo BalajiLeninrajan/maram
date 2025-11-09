@@ -1,3 +1,4 @@
+use crate::config::Config;
 use crate::metadata::WorktreeMetadata;
 use anyhow::{Context, Result};
 use std::fs;
@@ -10,12 +11,8 @@ pub struct WorktreeSet {
 
 impl WorktreeSet {
     pub fn get_maram_dir() -> Result<PathBuf> {
-        if let Ok(maram_dir) = std::env::var("MARAM_DIR") {
-            Ok(PathBuf::from(maram_dir))
-        } else {
-            let home = dirs::home_dir().context("Failed to find home directory")?;
-            Ok(home.join("maram"))
-        }
+        let config = Config::load()?;
+        config.get_maram_dir()
     }
 
     pub fn get_repo_dir(repo_name: &str) -> Result<PathBuf> {

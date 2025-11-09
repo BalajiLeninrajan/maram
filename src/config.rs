@@ -10,6 +10,8 @@ pub struct Config {
     pub no_session: bool,
     #[serde(default)]
     pub prefix_zellij_layout: Option<String>,
+    #[serde(default)]
+    pub maram_dir: Option<String>,
 }
 
 impl Config {
@@ -46,21 +48,24 @@ impl Config {
             no_session: false,
             prefix_zellij_layout: Some(
                 r#"default_tab_template {
-  pane size=1 borderless=true {
-      plugin location="zellij:tab-bar"
-  }
-  children
-  pane size=2 borderless=true {
-      plugin location="zellij:status-bar"
-  }
+     pane size=1 borderless=true {
+         plugin location="zellij:tab-bar"
+     }
+     children
+     pane size=2 borderless=true {
+         plugin location="zellij:status-bar"
+     }
 }"#
                 .to_string(),
             ),
+            maram_dir: Some("~/maram".to_string()),
         };
 
         let toml_content = r#"default_variants = []
 
 no_session = false
+
+# maram_dir = "~/maram"  # Optional: custom directory for worktree sets (defaults to ~/maram)
 
 prefix_zellij_layout = """
 default_tab_template {
@@ -86,5 +91,22 @@ default_tab_template {
         let dot_config_path = home.join(".config").join("maram").join("config.toml");
 
         Ok(dot_config_path)
+    }
+
+    pub fn get_maram_dir(&self) -> Result<PathBuf> {
+        if let Some(ref dir) = self.maram_dir {
+            let expanded = if dir.starts_with("~/") {
+                let home = dirs::home_dir().context("Failed to find home directory")?;
+                let dir = dir.strip_prefix("~/").unwrap();
+                home.join(dir)
+            } else {
+                PathBuf::from(dir)
+            };
+            Ok(expanded)
+        } else {
+            // Default to ~/maram
+            let home = dirs::home_dir().context("Failed to find home directory")?;
+            Ok(home.join("maram"))
+        }
     }
 }
