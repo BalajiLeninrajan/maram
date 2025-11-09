@@ -4,7 +4,7 @@ use crate::metadata::{LAYOUT_FILE, WorktreeMetadata};
 use crate::worktree_set::WorktreeSet;
 use crate::zellij::ZellijSession;
 use anyhow::{Context, Result};
-use clap::{Parser, Subcommand};
+use clap::{ArgAction, Parser, Subcommand};
 use dialoguer::{Confirm, Input, Select, theme::ColorfulTheme};
 use indicatif::{ProgressBar, ProgressStyle};
 use std::{process::Command, time::Duration};
@@ -25,8 +25,8 @@ pub enum Commands {
         /// Branch name (optional, will prompt if not provided)
         branch_name: Option<String>,
         /// Don't attach to zellij session, just drop into the base worktree directory
-        #[arg(long = "no-session", short = 'n')]
-        no_session: Option<bool>,
+        #[arg(long = "no-session", short = 'n', action= ArgAction::SetTrue)]
+        no_session: bool,
         /// Variants to create (skips interactive TUI). If not provided, uses interactive TUI. If provided with no values, only creates the base branch.
         #[arg(long = "variants", short='v', num_args = 0..)]
         variants: Option<Vec<String>>,
@@ -37,8 +37,8 @@ pub enum Commands {
         /// Branch name (optional, will prompt if not provided)
         branch_name: Option<String>,
         /// Don't attach to zellij session, just print the directory path
-        #[arg(long = "no-session", short = 'n')]
-        no_session: Option<bool>,
+        #[arg(long = "no-session", short = 'n', action=ArgAction::SetTrue)]
+        no_session: bool,
     },
     /// Delete a worktree set
     #[command(alias = "d")]
@@ -209,13 +209,12 @@ where
 
 pub fn handle_create(
     branch_name: Option<String>,
-    no_session: Option<bool>,
+    no_session: bool,
     cli_variants: Option<Vec<String>>,
 ) -> Result<()> {
     let repo = GitRepo::open_from_current_dir()?;
     let repo_name = repo.get_repo_name()?;
     let config = Config::load()?;
-    let no_session = no_session.unwrap_or(config.no_session);
 
     let branch_name = if let Some(name) = branch_name {
         name
@@ -365,11 +364,11 @@ pub fn handle_create(
     Ok(())
 }
 
-pub fn handle_checkout(branch_name: Option<String>, no_session: Option<bool>) -> Result<()> {
+pub fn handle_checkout(branch_name: Option<String>, no_session: bool) -> Result<()> {
     let repo = GitRepo::open_from_current_dir()?;
     let repo_name = repo.get_repo_name()?;
     let config = Config::load()?;
-    let no_session = no_session.unwrap_or(config.no_session);
+    let no_session = no_session ^ config.no_session;
 
     let selected_branch = if let Some(name) = branch_name {
         name
