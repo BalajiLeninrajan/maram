@@ -46,6 +46,8 @@ A worktree set consists of:
 
 ## Installation
 
+### Building from Source
+
 ```bash
 cargo build --release
 ```
@@ -113,6 +115,7 @@ default_tab_template {
 ### Config File Location
 
 The configuration file is located at:
+
 - **Linux/macOS**: `~/.config/maram/config.toml`
 - **Windows**: `%APPDATA%\maram\config.toml`
 
