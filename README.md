@@ -29,7 +29,7 @@ A worktree set consists of:
     └── <branch-name>/
         ├── base/              # Base branch worktree
         ├── variant1/          # First variant worktree
-        ├── variant2/          # Second variant worktree
+        └── variant2/          # Second variant worktree
 ```
 
 ### Features
@@ -60,11 +60,10 @@ cargo build --release
 
 ```toml
 # Default variants to create when creating a new worktree set
-# If empty, you'll be prompted interactively to select variants
 default_variants = ["approach-a", "approach-b"]
 
 # Whether to skip Zellij session attachment by default
-# Can be overridden with --no-session flag
+# Can be overridden with --no-session flag (acts like a toggle)
 no_session = false
 
 # Custom directory for storing worktree sets
