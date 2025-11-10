@@ -151,7 +151,9 @@ fn sanitize_branch_name(name: &str) -> String {
 }
 
 fn format_variant_branch(variant: &str, base_branch: &str) -> String {
-    sanitize_branch_name(&format!("{}/{}", variant, base_branch))
+    let variant = sanitize_branch_name(variant);
+    let base_branch = sanitize_branch_name(base_branch);
+    format!("{}/{}", variant, base_branch)
 }
 
 fn drop_into_shell(target_dir: &std::path::Path) -> Result<()> {
