@@ -139,7 +139,7 @@ fn manage_variants_interactive(default_variants: Vec<String>) -> Result<Vec<Stri
 }
 
 fn sanitize_branch_name(name: &str) -> String {
-    name.replace(' ', "-")
+    name.replace([' ', '/'], "-")
         .chars()
         .filter(|c| {
             !matches!(
@@ -372,7 +372,7 @@ pub fn handle_checkout(branch_name: Option<String>, no_session: bool) -> Result<
     let no_session = no_session ^ config.no_session;
 
     let selected_branch = if let Some(name) = branch_name {
-        name
+        sanitize_branch_name(&name)
     } else {
         select_worktree_set(&repo_name, "Select worktree set")?
     };
@@ -401,7 +401,7 @@ pub fn handle_delete(branch_name: Option<String>) -> Result<()> {
     let repo_name = repo.get_repo_name()?;
 
     let selected_branch = if let Some(name) = branch_name {
-        name
+        sanitize_branch_name(&name)
     } else {
         select_worktree_set(&repo_name, "Select worktree set to delete")?
     };
