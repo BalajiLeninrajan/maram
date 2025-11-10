@@ -549,7 +549,10 @@ pub fn handle_pick(variant_name: Option<String>) -> Result<()> {
         anyhow::bail!("Cherry-pick failed with conflicts");
     }
 
-    base_repo.commit_changes(&format!("Pick variant {}", variant_name))?;
+    base_repo.commit_changes(&format!(
+        "Apply variant '{}' to '{}'",
+        variant_name, base_branch
+    ))?;
 
     worktree_set.metadata.current_picked_variant = Some(variant_name.clone());
     worktree_set.metadata.save(&worktree_set.base_dir)?;
