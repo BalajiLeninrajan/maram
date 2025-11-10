@@ -420,7 +420,9 @@ pub fn handle_delete(branch_name: Option<String>) -> Result<()> {
         run_with_spinner(
             format!(
                 "Removing worktree for variant '{}' ({}/{})...",
-                variant_name, index, variant_count
+                variant_name,
+                index + 1,
+                variant_count
             ),
             format!("Removed worktree for variant '{}'", variant_name),
             || {
@@ -435,7 +437,9 @@ pub fn handle_delete(branch_name: Option<String>) -> Result<()> {
         run_with_spinner(
             format!(
                 "Deleting branch for variant '{}' ({}/{})...",
-                variant, index, variant_count
+                variant,
+                index + 1,
+                variant_count
             ),
             format!("Deleted branch for variant '{}'", variant),
             || {
