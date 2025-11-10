@@ -150,6 +150,10 @@ fn sanitize_branch_name(name: &str) -> String {
         .collect()
 }
 
+fn format_variant_branch(variant: &str, base_branch: &str) -> String {
+    sanitize_branch_name(&format!("{}/{}", variant, base_branch))
+}
+
 fn drop_into_shell(target_dir: &std::path::Path) -> Result<()> {
     std::env::set_current_dir(target_dir)
         .with_context(|| format!("Failed to change directory to {}", target_dir.display()))?;
@@ -268,10 +272,7 @@ pub fn handle_create(
 
     let variant_branches: Vec<String> = variants
         .iter()
-        .map(|v| {
-            let branch_name = WorktreeSet::format_variant_branch(v, &base_branch);
-            sanitize_branch_name(&branch_name)
-        })
+        .map(|v| format_variant_branch(v, &base_branch))
         .collect();
 
     for variant_branch in &variant_branches {
@@ -407,14 +408,28 @@ pub fn handle_delete(branch_name: Option<String>) -> Result<()> {
 
     let worktree_set = WorktreeSet::load(&repo_name, &selected_branch)?;
 
-    repo.remove_worktree(&worktree_set.metadata.base_path)?;
-    for path in worktree_set.metadata.variant_paths.values() {
-        repo.remove_worktree(path)?;
-    }
+    run_with_spinner("Remove base worktree", "Removed base worktree", || {
+        repo.remove_worktree(&worktree_set.metadata.base_path)?;
+        Ok(())
+    })?;
 
     let variant_count = worktree_set.metadata.variants.len();
+    for (index, (variant_name, path)) in worktree_set.metadata.variant_paths.iter().enumerate() {
+        run_with_spinner(
+            format!(
+                "Removing worktree for variant '{}' ({}/{})...",
+                variant_name, index, variant_count
+            ),
+            format!("Removed worktree for variant '{}'", variant_name),
+            || {
+                repo.remove_worktree(path)?;
+                Ok(())
+            },
+        )?;
+    }
+
     for (index, variant) in worktree_set.metadata.variants.iter().enumerate() {
-        let branch_name = WorktreeSet::format_variant_branch(variant, &selected_branch);
+        let branch_name = format_variant_branch(variant, &selected_branch);
         run_with_spinner(
             format!(
                 "Deleting branch for variant '{}' ({}/{})...",
@@ -518,7 +533,7 @@ pub fn handle_pick(variant_name: Option<String>) -> Result<()> {
     }
 
     // Get variant branch
-    let variant_branch = WorktreeSet::format_variant_branch(&variant_name, &base_branch);
+    let variant_branch = format_variant_branch(&variant_name, &base_branch);
 
     let has_commits = base_repo.has_commits_between(&base_commit, &variant_branch)?;
 
@@ -668,8 +683,7 @@ pub fn handle_add(variant_name: Option<String>) -> Result<()> {
     }
 
     let base_branch = worktree_set.metadata.branch_name.clone();
-    let variant_branch = WorktreeSet::format_variant_branch(&variant_name, &base_branch);
-    let variant_branch = sanitize_branch_name(&variant_branch);
+    let variant_branch = format_variant_branch(&variant_name, &base_branch);
 
     if repo.branch_exists(&variant_branch) {
         anyhow::bail!(
@@ -758,7 +772,7 @@ pub fn handle_remove(variant_name: Option<String>) -> Result<()> {
     )?;
 
     let base_branch = worktree_set.metadata.branch_name.clone();
-    let variant_branch = WorktreeSet::format_variant_branch(&variant_name, &base_branch);
+    let variant_branch = format_variant_branch(&variant_name, &base_branch);
     repo.delete_branch(&variant_branch).ok(); // Ignore errors if branch doesn't exist
 
     worktree_set

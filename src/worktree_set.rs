@@ -101,10 +101,6 @@ impl WorktreeSet {
         anyhow::bail!("Could not find worktree set metadata");
     }
 
-    pub fn format_variant_branch(variant: &str, base_branch: &str) -> String {
-        format!("{}/{}", variant, base_branch)
-    }
-
     pub fn is_in_base_worktree(&self) -> Result<bool> {
         let current_dir = std::env::current_dir()?;
         let base_path = fs::canonicalize(&self.metadata.base_path)
