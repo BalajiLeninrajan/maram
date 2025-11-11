@@ -131,7 +131,7 @@ where
 
     let spinner_style = ProgressStyle::with_template("{spinner} {msg}")
         .expect("spinner template is valid")
-        .tick_strings(&["▱▱▱▱▱", "▰▱▱▱▱", "▰▰▱▱▱", "▰▰▰▱▱", "▰▰▰▰▱", "▰▰▰▰▰"]);
+        .tick_strings(&["◐", "◓", "◑", "◒", "●"]);
 
     let spinner = ProgressBar::new_spinner();
     spinner.set_style(spinner_style);
