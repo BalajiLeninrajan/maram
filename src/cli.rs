@@ -442,6 +442,23 @@ pub fn handle_status() -> Result<()> {
     Ok(())
 }
 
+pub fn handle_list() -> Result<()> {
+    let repo = GitRepo::open_from_current_dir()?;
+    let repo_name = repo.get_repo_name()?;
+    let worktree_sets = WorktreeSet::list_worktree_sets(&repo_name)?;
+
+    if worktree_sets.is_empty() {
+        println!("No worktree sets found for repository '{}'", repo_name);
+        return Ok(());
+    }
+
+    for worktree_set in worktree_sets {
+        println!("> {}", worktree_set);
+    }
+
+    Ok(())
+}
+
 pub fn handle_pick(variant_name: Option<String>) -> Result<()> {
     let mut worktree_set = WorktreeSet::find_current()?;
 

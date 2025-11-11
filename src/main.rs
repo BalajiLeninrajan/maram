@@ -6,7 +6,7 @@ mod metadata;
 mod worktree_set;
 mod zellij;
 
-use crate::commands::Commands;
+use crate::{cli::handle_list, commands::Commands};
 use anyhow::Result;
 use clap::Parser;
 use cli::{
@@ -29,6 +29,7 @@ fn main() -> Result<()> {
         } => handle_checkout(branch_name, no_session),
         Commands::Delete { branch_name } => handle_delete(branch_name),
         Commands::Status => handle_status(),
+        Commands::List => handle_list(),
         Commands::Pick { variant_name } => handle_pick(variant_name),
         Commands::Reset => handle_reset(),
         Commands::Diff { variant1, variant2 } => handle_diff(variant1, variant2),

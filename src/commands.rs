@@ -32,6 +32,9 @@ pub enum Commands {
     /// Show status of current worktree set
     #[command(alias = "s")]
     Status,
+    /// List all worktree sets for the repo
+    #[command(alias = "ls")]
+    List,
     /// Pick a variant to apply to base
     #[command(alias = "p")]
     Pick {
