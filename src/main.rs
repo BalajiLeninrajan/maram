@@ -1,15 +1,17 @@
 mod cli;
+mod commands;
 mod config;
 mod git;
 mod metadata;
 mod worktree_set;
 mod zellij;
 
+use crate::commands::Commands;
 use anyhow::Result;
 use clap::Parser;
 use cli::{
-    Cli, Commands, handle_add, handle_checkout, handle_create, handle_delete, handle_diff,
-    handle_pick, handle_remove, handle_reset, handle_status,
+    Cli, handle_add, handle_checkout, handle_create, handle_delete, handle_diff, handle_pick,
+    handle_remove, handle_reset, handle_status,
 };
 
 fn main() -> Result<()> {

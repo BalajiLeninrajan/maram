@@ -1,10 +1,11 @@
+use crate::commands::Commands;
 use crate::config::Config;
 use crate::git::GitRepo;
 use crate::metadata::{LAYOUT_FILE, WorktreeMetadata};
 use crate::worktree_set::WorktreeSet;
 use crate::zellij::ZellijSession;
 use anyhow::{Context, Result};
-use clap::{ArgAction, Parser, Subcommand};
+use clap::Parser;
 use dialoguer::{Confirm, Input, Select, theme::ColorfulTheme};
 use indicatif::{ProgressBar, ProgressStyle};
 use std::{process::Command, time::Duration};
@@ -15,68 +16,6 @@ use std::{process::Command, time::Duration};
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
-}
-
-#[derive(Subcommand)]
-pub enum Commands {
-    /// Create a new worktree set
-    #[command(alias = "c")]
-    Create {
-        /// Branch name (optional, will prompt if not provided)
-        branch_name: Option<String>,
-        /// Don't attach to zellij session, just drop into the base worktree directory
-        #[arg(long = "no-session", short = 'n', action= ArgAction::SetTrue)]
-        no_session: bool,
-        /// Variants to create (skips interactive TUI). If not provided, uses interactive TUI. If provided with no values, only creates the base branch.
-        #[arg(long = "variants", short='v', num_args = 0..)]
-        variants: Option<Vec<String>>,
-    },
-    /// Checkout/switch to a worktree set
-    #[command(alias = "co")]
-    Checkout {
-        /// Branch name (optional, will prompt if not provided)
-        branch_name: Option<String>,
-        /// Don't attach to zellij session, just print the directory path
-        #[arg(long = "no-session", short = 'n', action=ArgAction::SetTrue)]
-        no_session: bool,
-    },
-    /// Delete a worktree set
-    #[command(alias = "d")]
-    Delete {
-        /// Branch name (optional, will prompt if not provided)
-        branch_name: Option<String>,
-    },
-    /// Show status of current worktree set
-    #[command(alias = "s")]
-    Status,
-    /// Pick a variant to apply to base
-    #[command(alias = "p")]
-    Pick {
-        /// Variant name (optional, will prompt if not provided)
-        variant_name: Option<String>,
-    },
-    /// Reset base branch to original state
-    #[command(alias = "r")]
-    Reset,
-    /// Diff between variants
-    Diff {
-        /// First variant name
-        variant1: String,
-        /// Second variant name (defaults to base)
-        variant2: Option<String>,
-    },
-    /// Add a new worktree variant to the set
-    #[command(alias = "a")]
-    Add {
-        /// Variant name (optional, will prompt if not provided)
-        variant_name: Option<String>,
-    },
-    /// Remove a worktree variant from the set
-    #[command(alias = "rm")]
-    Remove {
-        /// Variant name (optional, will prompt if not provided)
-        variant_name: Option<String>,
-    },
 }
 
 fn select_from_list(items: &[String], prompt: &str) -> Result<String> {
