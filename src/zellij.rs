@@ -94,9 +94,9 @@ impl ZellijSession {
         Ok(())
     }
 
-    pub fn kill_session(&self) -> Result<()> {
+    pub fn delete_session(&self) -> Result<()> {
         let status = Command::new("zellij")
-            .args(["kill-session", &self.session_name])
+            .args(["delete-session", "--force", &self.session_name])
             .status()
             .context("Failed to kill zellij session")?;
 

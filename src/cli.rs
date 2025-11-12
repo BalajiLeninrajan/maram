@@ -6,6 +6,7 @@ use crate::worktree_set::WorktreeSet;
 use crate::zellij::ZellijSession;
 use anyhow::{Context, Result};
 use clap::Parser;
+use console::style;
 use dialoguer::{Confirm, Input, Select, theme::ColorfulTheme};
 use indicatif::{ProgressBar, ProgressStyle};
 use std::{process::Command, time::Duration};
@@ -118,6 +119,10 @@ fn drop_into_shell(target_dir: &std::path::Path) -> Result<()> {
     Ok(())
 }
 
+fn green<S: AsRef<str>>(string: S) -> String {
+    style(string.as_ref()).green().to_string()
+}
+
 fn run_with_spinner<F, T>(
     start_message: impl Into<String>,
     success_message: impl Into<String>,
@@ -131,7 +136,7 @@ where
 
     let spinner_style = ProgressStyle::with_template("{spinner} {msg}")
         .expect("spinner template is valid")
-        .tick_strings(&["◐", "◓", "◑", "◒", "●"]);
+        .tick_strings(&["◐", "◓", "◑", "◒", &green("✔")]);
 
     let spinner = ProgressBar::new_spinner();
     spinner.set_style(spinner_style);
@@ -419,7 +424,7 @@ pub fn handle_delete(branch_name: Option<String>) -> Result<()> {
 
     let session = ZellijSession::from_repo_and_branch(&repo_name, &selected_branch);
     if session.session_exists() {
-        session.kill_session().ok(); // Ignore errors
+        session.delete_session().ok(); // Ignore errors
     }
 
     Ok(())
@@ -428,15 +433,20 @@ pub fn handle_delete(branch_name: Option<String>) -> Result<()> {
 pub fn handle_status() -> Result<()> {
     let worktree_set = WorktreeSet::find_current()?;
 
-    println!("Worktree set: {}", worktree_set.metadata.branch_name);
     println!(
-        "Number of trees: {}",
+        "{}{}",
+        green("Worktree set: "),
+        worktree_set.metadata.branch_name
+    );
+    println!(
+        "{}{}",
+        green("Number of trees: "),
         worktree_set.metadata.variants.len() + 1
     );
     if let Some(picked) = &worktree_set.metadata.current_picked_variant {
-        println!("Current picked variant: {}", picked);
+        println!("{}{}", green("Current picked variant: "), picked);
     } else {
-        println!("Current picked variant: (none)");
+        println!("{}(none)", green("Current picked variant: "));
     }
 
     Ok(())
@@ -453,7 +463,7 @@ pub fn handle_list() -> Result<()> {
     }
 
     for worktree_set in worktree_sets {
-        println!("> {}", worktree_set);
+        println!("{} {}", green("❯"), worktree_set);
     }
 
     Ok(())
@@ -507,7 +517,7 @@ pub fn handle_pick(variant_name: Option<String>) -> Result<()> {
 
         println!(
             "Updated metadata to reflect variant '{}' as the current pick.",
-            variant_name
+            green(variant_name)
         );
         return Ok(());
     }
@@ -534,7 +544,7 @@ pub fn handle_pick(variant_name: Option<String>) -> Result<()> {
     worktree_set.metadata.current_picked_variant = Some(variant_name.clone());
     worktree_set.metadata.save(&worktree_set.base_dir)?;
 
-    println!("Picked variant '{}'", variant_name);
+    println!("Picked variant '{}'", green(variant_name));
 
     Ok(())
 }
@@ -686,7 +696,8 @@ pub fn handle_add(variant_name: Option<String>) -> Result<()> {
 
     println!(
         "Added variant '{}' to worktree set '{}'",
-        variant_name, base_branch
+        green(variant_name),
+        base_branch
     );
 
     Ok(())
@@ -753,7 +764,8 @@ pub fn handle_remove(variant_name: Option<String>) -> Result<()> {
 
     println!(
         "Removed variant '{}' from worktree set '{}'",
-        variant_name, base_branch
+        green(variant_name),
+        base_branch
     );
 
     Ok(())
