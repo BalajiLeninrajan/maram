@@ -579,67 +579,38 @@ pub fn handle_reset() -> Result<()> {
 }
 
 pub fn handle_diff(variant1: String, variant2: Option<String>) -> Result<()> {
-    if !WorktreeSet::is_in_worktree_set() {
-        anyhow::bail!("This command must be run from within a worktree set directory");
-    }
+    let worktree_set = WorktreeSet::find_current()?;
+    let repo = GitRepo::open_from_current_dir()?;
 
-    let current_dir = std::env::current_dir()?;
+    let base_branch = worktree_set.metadata.branch_name;
 
-    let mut path = current_dir.clone();
-    while path.starts_with(&WorktreeSet::get_maram_dir()?) {
-        if WorktreeMetadata::exists(&path) {
-            // Use the found directory directly instead of reconstructing it
-            let worktree_set = WorktreeSet::load_from_path(&path)?;
-
-            // Get worktree paths from metadata
-            let worktree_path1 = if variant1 == "base" {
-                worktree_set.metadata.base_path.clone()
-            } else {
-                worktree_set
-                    .metadata
-                    .variant_paths
-                    .get(&variant1)
-                    .ok_or_else(|| anyhow::anyhow!("Variant '{}' not found", variant1))?
-                    .clone()
-            };
-
-            let worktree_path2 = if let Some(v2) = variant2 {
-                if v2 == "base" {
-                    worktree_set.metadata.base_path
-                } else {
-                    worktree_set
-                        .metadata
-                        .variant_paths
-                        .get(&v2)
-                        .ok_or_else(|| anyhow::anyhow!("Variant '{}' not found", v2))?
-                        .clone()
-                }
-            } else {
-                worktree_set.metadata.base_path
-            };
-
-            use std::process::Command;
-            let status = Command::new("diff")
-                .args([
-                    "-r",
-                    worktree_path1.to_str().unwrap(),
-                    worktree_path2.to_str().unwrap(),
-                ])
-                .status()
-                .context("Failed to execute diff -r")?;
-
-            // diff returns exit code 1 when differences are found, which is normal
-            // Exit code 0 means no differences, exit code 2 means error
-            if status.code() == Some(2) {
-                anyhow::bail!("diff -r failed");
-            }
-
-            return Ok(());
+    let branch1 = if variant1 == "base" {
+        base_branch.clone()
+    } else {
+        if !worktree_set.metadata.variants.contains(&variant1) {
+            anyhow::bail!("Variant '{}' not found", variant1);
         }
-        path = path.parent().unwrap().to_path_buf();
-    }
+        format_variant_branch(&variant1, &base_branch)
+    };
 
-    anyhow::bail!("Could not find worktree set metadata");
+    if variant2.is_none() {
+        repo.diff_branches(&base_branch, &branch1)?;
+        return Ok(());
+    }
+    let variant2 = variant2.unwrap();
+
+    let branch2 = if variant2 == "base" {
+        base_branch
+    } else {
+        if !worktree_set.metadata.variants.contains(&variant2) {
+            anyhow::bail!("Variant '{}' not found", variant2);
+        }
+        format_variant_branch(&variant2, &base_branch)
+    };
+
+    repo.diff_branches(&branch1, &branch2)?;
+
+    Ok(())
 }
 
 pub fn handle_add(variant_name: Option<String>) -> Result<()> {

@@ -5,6 +5,7 @@ use git2::{
 };
 use std::fs;
 use std::path::Path;
+use std::process::Command;
 
 pub struct GitRepo {
     repo: Repository,
@@ -41,8 +42,6 @@ impl GitRepo {
             return Ok(name);
         }
 
-        // Try to detect if we're in a maram worktree directory structure
-        // Path structure: ~/maram/<repo_name>/<branch_name>/...
         if let Ok(current_dir) = std::env::current_dir()
             && let Ok(maram_dir) = crate::worktree_set::WorktreeSet::get_maram_dir()
             && current_dir.starts_with(&maram_dir)
@@ -58,8 +57,6 @@ impl GitRepo {
             }
         }
 
-        // For worktrees, repo.path() points to .git/worktrees/<name>/
-        // We need to get the main repository path
         let git_path = self.repo.path();
 
         let main_repo_path = if git_path.to_string_lossy().contains("worktrees") {
@@ -105,8 +102,6 @@ impl GitRepo {
         let reference = branch_ref.into_reference();
         opts.reference(Some(&reference));
 
-        // Use a sanitized worktree name (replace slashes with dashes) to avoid directory creation issues
-        // The worktree name is used as an identifier in .git/worktrees/, so it can't contain slashes
         let worktree_name = branch.replace('/', "-");
 
         let worktree = self
@@ -263,7 +258,6 @@ impl GitRepo {
             .hide(from_oid)
             .with_context(|| format!("Failed to hide from {} from revwalk", from))?;
 
-        // Collect commits in reverse order (oldest first)
         let mut commits: Vec<git2::Oid> = revwalk
             .collect::<Result<Vec<_>, _>>()
             .context("Failed to walk commits")?;
@@ -322,10 +316,8 @@ impl GitRepo {
             .or_else(|_| Signature::now("maram", "maram@maram.local"))
             .context("Failed to create signature")?;
 
-        // Check if HEAD is unborn (no commits exist)
         match self.repo.head() {
             Ok(head) => {
-                // HEAD exists, get the parent commit
                 let parent_commit = head.peel_to_commit().context("Failed to get HEAD commit")?;
                 self.repo
                     .commit(
@@ -346,6 +338,20 @@ impl GitRepo {
             Err(e) => {
                 return Err(anyhow::anyhow!("Failed to get HEAD: {}", e));
             }
+        }
+
+        Ok(())
+    }
+
+    pub fn diff_branches(&self, branch1: &str, branch2: &str) -> Result<()> {
+        // shell out to binary instead of using git2 to allow for custom pagers
+        let status = Command::new("git")
+            .args(["diff", branch1, branch2])
+            .status()
+            .context("Failed to execute git diff")?;
+
+        if !status.success() {
+            anyhow::bail!("git diff failed");
         }
 
         Ok(())

@@ -46,9 +46,9 @@ pub enum Commands {
     Reset,
     /// Diff between variants
     Diff {
-        /// First variant name
+        /// First variant name (defaults to base)
         variant1: String,
-        /// Second variant name (defaults to base)
+        /// Second variant name
         variant2: Option<String>,
     },
     /// Add a new worktree variant to the set
