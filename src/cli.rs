@@ -462,8 +462,16 @@ pub fn handle_list() -> Result<()> {
         return Ok(());
     }
 
+    let current_set = WorktreeSet::find_current()
+        .ok()
+        .map(|ws| ws.metadata.branch_name);
+
     for worktree_set in worktree_sets {
-        println!("{} {}", green("❯"), worktree_set);
+        if current_set.as_ref() == Some(&worktree_set) {
+            println!("{} {}", green("❯"), worktree_set);
+        } else {
+            println!("  {}", worktree_set);
+        }
     }
 
     Ok(())
