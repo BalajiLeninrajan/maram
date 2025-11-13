@@ -400,7 +400,7 @@ impl GitRepo {
                     "Failed to get upstream for branch {}: {}",
                     branch,
                     e
-                ))
+                ));
             }
         };
 
@@ -412,12 +412,7 @@ impl GitRepo {
             .current_dir(worktree_path)
             .args(["rebase", onto])
             .output()
-            .with_context(|| {
-                format!(
-                    "Failed to execute git rebase {} onto {}",
-                    branch, onto
-                )
-            })?;
+            .with_context(|| format!("Failed to execute git rebase {} onto {}", branch, onto))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -441,9 +436,6 @@ impl GitRepo {
 
         Ok(())
     }
-<<<<<<< HEAD
-||||||| ancestor
-=======
 
     pub fn get_head_commit(&self, worktree_path: &Path) -> Result<String> {
         let worktree_repo = Repository::open(worktree_path)
@@ -455,5 +447,4 @@ impl GitRepo {
             .to_string();
         Ok(commit_id)
     }
->>>>>>> 2658481... add sync command to rebase branches with upstreams
 }
