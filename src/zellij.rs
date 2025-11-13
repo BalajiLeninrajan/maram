@@ -132,8 +132,8 @@ impl ZellijSession {
             let path_str = path
                 .to_str()
                 .ok_or_else(|| anyhow::anyhow!("Path contains invalid UTF-8: {:?}", path))?;
-            layout.push_str(&format!("  tab \"{}\" {{\n", tab_name));
-            layout.push_str(&format!("    pane cwd=\"{}\" command=\"zsh\"\n", path_str));
+            layout.push_str(&format!("  tab name=\"{}\" {{\n", tab_name));
+            layout.push_str(&format!("    pane cwd=\"{}\"\n", path_str));
             layout.push_str("  }\n");
         }
 
