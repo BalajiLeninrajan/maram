@@ -379,34 +379,6 @@ impl GitRepo {
         Ok(())
     }
 
-    pub fn get_upstream_branch(&self, branch: &str) -> Result<Option<String>> {
-        let branch_ref = self
-            .repo
-            .find_branch(branch, git2::BranchType::Local)
-            .with_context(|| format!("Branch {} does not exist", branch))?;
-
-        let upstream = match branch_ref.upstream() {
-            Ok(upstream_branch) => {
-                let name = upstream_branch
-                    .name()
-                    .with_context(|| "Failed to get upstream branch name")?
-                    .ok_or_else(|| anyhow::anyhow!("Upstream branch name is not valid UTF-8"))?
-                    .to_string();
-                Some(name)
-            }
-            Err(e) if e.code() == ErrorCode::NotFound => None,
-            Err(e) => {
-                return Err(anyhow::anyhow!(
-                    "Failed to get upstream for branch {}: {}",
-                    branch,
-                    e
-                ));
-            }
-        };
-
-        Ok(upstream)
-    }
-
     pub fn rebase_branch(&self, worktree_path: &Path, branch: &str, onto: &str) -> Result<()> {
         let output = Command::new("git")
             .current_dir(worktree_path)
@@ -446,5 +418,20 @@ impl GitRepo {
             .ok_or_else(|| anyhow::anyhow!("HEAD has no target commit"))?
             .to_string();
         Ok(commit_id)
+    }
+
+    pub fn get_current_branch(&self) -> Result<Option<String>> {
+        let head = self.repo.head().context("Failed to get HEAD")?;
+
+        if !head.is_branch() {
+            return Ok(None);
+        }
+
+        let branch_name = head
+            .shorthand()
+            .ok_or_else(|| anyhow::anyhow!("Branch name is not valid UTF-8"))?
+            .to_string();
+
+        Ok(Some(branch_name))
     }
 }

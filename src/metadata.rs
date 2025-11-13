@@ -14,8 +14,12 @@ pub struct WorktreeMetadata {
     pub variants: Vec<String>,
     pub base_path: PathBuf,
     pub variant_paths: std::collections::HashMap<String, PathBuf>,
+    #[serde(default)]
     pub current_picked_variant: Option<String>,
+    #[serde(default)]
     pub base_commit: String, // Store the original commit before any picks
+    #[serde(default)]
+    pub parent_branch: Option<String>, // The branch this worktree set was created from
 }
 
 impl WorktreeMetadata {
@@ -27,6 +31,7 @@ impl WorktreeMetadata {
             variant_paths: std::collections::HashMap::new(),
             current_picked_variant: None,
             base_commit: String::new(),
+            parent_branch: None,
         }
     }
 

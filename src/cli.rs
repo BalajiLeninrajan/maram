@@ -282,11 +282,15 @@ pub fn handle_create(
     let head = repo.repo().head()?;
     let base_commit = head.target().unwrap().to_string();
 
+    // Get current branch as parent_branch
+    let parent_branch = repo.get_current_branch()?;
+
     // Create metadata
     let mut metadata = WorktreeMetadata::new(branch_name.clone(), variants.clone());
     metadata.base_path = base_path.clone();
     metadata.variant_paths = variant_paths;
     metadata.base_commit = base_commit;
+    metadata.parent_branch = parent_branch;
     metadata.save(&worktree_dir)?;
 
     println!(
@@ -757,37 +761,37 @@ pub fn handle_remove(variant_name: Option<String>) -> Result<()> {
     Ok(())
 }
 
-pub fn handle_sync() -> Result<()> {
+pub fn handle_sync(branch: Option<String>) -> Result<()> {
     let mut worktree_set = WorktreeSet::find_current()?;
     let repo = GitRepo::open_from_current_dir()?;
     let base_branch = worktree_set.metadata.branch_name.clone();
 
-    let upstream = repo.get_upstream_branch(&base_branch)?;
-    let upstream_branch = upstream.ok_or_else(|| {
-        anyhow::anyhow!(
-            "Base branch '{}' has no upstream configured. Set an upstream with: git branch --set-upstream-to=<remote>/<branch> {}",
-            base_branch,
-            base_branch
-        )
-    })?;
+    let parent_branch = branch
+        .or(worktree_set.metadata.parent_branch.clone())
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "No parent branch specified and no parent_branch found in metadata. \
+            Provide a branch to sync with: maram sync <branch>"
+            )
+        })?;
 
     let base_path = worktree_set.metadata.base_path.clone();
     run_with_spinner(
         format!(
             "Rebasing base branch '{}' onto '{}'...",
-            base_branch, upstream_branch
+            base_branch, parent_branch
         ),
         format!(
             "Rebased base branch '{}' onto '{}'",
-            base_branch, upstream_branch
+            base_branch, parent_branch
         ),
-        || repo.rebase_branch(&base_path, &base_branch, &upstream_branch),
+        || repo.rebase_branch(&base_path, &base_branch, &parent_branch),
     )
     .with_context(|| {
         format!(
             "To manually resolve conflicts, run:\n  cd {}\n  git rebase {}",
             base_path.display(),
-            upstream_branch
+            parent_branch
         )
     })?;
 
@@ -804,34 +808,22 @@ pub fn handle_sync() -> Result<()> {
             .ok_or_else(|| anyhow::anyhow!("Variant path not found for '{}'", variant))?
             .clone();
 
-        let variant_upstream = repo.get_upstream_branch(&variant_branch)?;
-        let variant_upstream_branch = variant_upstream.ok_or_else(|| {
-            anyhow::anyhow!(
-                "Variant branch '{}' has no upstream configured. Set an upstream with: git branch --set-upstream-to=<remote>/<branch> {}",
-                variant_branch,
-                variant_branch
-            )
-        })?;
-
         run_with_spinner(
             format!(
                 "Rebasing variant '{}' onto '{}' ({}/{})...",
                 variant,
-                variant_upstream_branch,
+                parent_branch,
                 index + 1,
                 worktree_set.metadata.variants.len()
             ),
-            format!(
-                "Rebased variant '{}' onto '{}'",
-                variant, variant_upstream_branch
-            ),
-            || repo.rebase_branch(&variant_path, &variant_branch, &variant_upstream_branch),
+            format!("Rebased variant '{}' onto '{}'", variant, parent_branch),
+            || repo.rebase_branch(&variant_path, &variant_branch, &parent_branch),
         )
         .with_context(|| {
             format!(
                 "To manually resolve conflicts, run:\n  cd {}\n  git rebase {}",
                 variant_path.display(),
-                variant_upstream_branch
+                parent_branch
             )
         })?;
     }

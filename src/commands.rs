@@ -63,6 +63,9 @@ pub enum Commands {
         /// Variant name (optional, will prompt if not provided)
         variant_name: Option<String>,
     },
-    /// Sync all branches in the worktree set with their upstreams
-    Sync,
+    /// Sync all branches in the worktree set by rebasing onto a shared parent branch
+    Sync {
+        /// Branch to rebase onto (optional, defaults to parent_branch from metadata)
+        branch: Option<String>,
+    },
 }

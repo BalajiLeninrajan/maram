@@ -35,6 +35,6 @@ fn main() -> Result<()> {
         Commands::Diff { variant1, variant2 } => handle_diff(variant1, variant2),
         Commands::Add { variant_name } => handle_add(variant_name),
         Commands::Remove { variant_name } => handle_remove(variant_name),
-        Commands::Sync => handle_sync(),
+        Commands::Sync { branch } => handle_sync(branch),
     }
 }
