@@ -210,6 +210,17 @@ maram rm [variant-name]
 
 Removes a worktree variant from the current worktree set.
 
+### Sync with parent
+
+```bash
+maram sync [branch-name]
+# or
+maram l [branch-name]
+```
+
+Rebases the branches in the current worktree set with the given branch.
+By default if no arguments are passed the parent branch is used.
+
 ## Examples
 
 ```bash

@@ -64,6 +64,7 @@ pub enum Commands {
         variant_name: Option<String>,
     },
     /// Sync all branches in the worktree set by rebasing onto a shared parent branch
+    #[command(alias = "l")]
     Sync {
         /// Branch to rebase onto (optional, defaults to parent_branch from metadata)
         branch: Option<String>,
