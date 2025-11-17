@@ -123,6 +123,10 @@ fn green<S: AsRef<str>>(string: S) -> String {
     style(string.as_ref()).green().to_string()
 }
 
+fn red<S: AsRef<str>>(string: S) -> String {
+    style(string.as_ref()).red().to_string()
+}
+
 fn run_with_spinner<F, T>(
     start_message: impl Into<String>,
     success_message: impl Into<String>,
@@ -539,8 +543,11 @@ pub fn handle_pick(variant_name: Option<String>) -> Result<()> {
     let success = base_repo.cherry_pick_commits(&base_commit, &variant_branch)?;
 
     if !success {
-        println!("Cherry-pick has conflicts. Please resolve them manually.");
-        println!("After resolving, run: git commit");
+        println!(
+            "{}",
+            red("Cherry-pick has conflicts. Please resolve them manually.")
+        );
+        println!("After resolving, run: {}", green("git commit"));
         anyhow::bail!("Cherry-pick failed with conflicts");
     }
 
