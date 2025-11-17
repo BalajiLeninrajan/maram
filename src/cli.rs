@@ -758,6 +758,7 @@ pub fn handle_remove(variant_name: Option<String>) -> Result<()> {
 }
 
 pub fn handle_sync() -> Result<()> {
+<<<<<<< HEAD
     let worktree_set = WorktreeSet::find_current()?;
     let repo = GitRepo::open_from_current_dir()?;
     let base_branch = worktree_set.metadata.branch_name.clone();
@@ -784,6 +785,39 @@ pub fn handle_sync() -> Result<()> {
             upstream_branch
         )
     })?;
+||||||| ancestor
+=======
+    let mut worktree_set = WorktreeSet::find_current()?;
+    let repo = GitRepo::open_from_current_dir()?;
+    let base_branch = worktree_set.metadata.branch_name.clone();
+
+    let upstream = repo.get_upstream_branch(&base_branch)?;
+    let upstream_branch = upstream.ok_or_else(|| {
+        anyhow::anyhow!(
+            "Base branch '{}' has no upstream configured. Set an upstream with: git branch --set-upstream-to=<remote>/<branch> {}",
+            base_branch,
+            base_branch
+        )
+    })?;
+
+    let base_path = worktree_set.metadata.base_path.clone();
+    run_with_spinner(
+        format!("Rebasing base branch '{}' onto '{}'...", base_branch, upstream_branch),
+        format!("Rebased base branch '{}' onto '{}'", base_branch, upstream_branch),
+        || repo.rebase_branch(&base_path, &base_branch, &upstream_branch),
+    )
+    .with_context(|| {
+        format!(
+            "To manually resolve conflicts, run:\n  cd {}\n  git rebase {}",
+            base_path.display(),
+            upstream_branch
+        )
+    })?;
+
+    let new_base_commit = repo.get_head_commit(&base_path)?;
+    worktree_set.metadata.base_commit = new_base_commit;
+    worktree_set.metadata.save(&worktree_set.base_dir)?;
+>>>>>>> 2658481... add sync command to rebase branches with upstreams
 
     for (index, variant) in worktree_set.metadata.variants.iter().enumerate() {
         let variant_branch = format_variant_branch(variant, &base_branch);

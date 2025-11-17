@@ -441,4 +441,19 @@ impl GitRepo {
 
         Ok(())
     }
+<<<<<<< HEAD
+||||||| ancestor
+=======
+
+    pub fn get_head_commit(&self, worktree_path: &Path) -> Result<String> {
+        let worktree_repo = Repository::open(worktree_path)
+            .with_context(|| format!("Failed to open repository at {:?}", worktree_path))?;
+        let head = worktree_repo.head().context("Failed to get HEAD")?;
+        let commit_id = head
+            .target()
+            .ok_or_else(|| anyhow::anyhow!("HEAD has no target commit"))?
+            .to_string();
+        Ok(commit_id)
+    }
+>>>>>>> 2658481... add sync command to rebase branches with upstreams
 }
