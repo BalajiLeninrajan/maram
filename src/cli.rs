@@ -789,9 +789,13 @@ pub fn handle_sync(branch: Option<String>) -> Result<()> {
     )
     .with_context(|| {
         format!(
-            "To manually resolve conflicts, run:\n  cd {}\n  git rebase {}",
-            base_path.display(),
-            parent_branch
+            "To manually resolve conflicts, run:{}\n then run: {} again",
+            green(format!(
+                "\n  $ cd {}\n  $ git rebase {}",
+                base_path.display(),
+                parent_branch
+            )),
+            green("maram sync")
         )
     })?;
 
