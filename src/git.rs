@@ -286,7 +286,15 @@ impl GitRepo {
                 .with_context(|| format!("Failed to find commit {}", commit_oid))?;
 
             match self.repo.cherrypick(&commit, Some(&mut opts)) {
-                Ok(()) => {}
+                Ok(()) => {
+                    let index = self
+                        .repo
+                        .index()
+                        .context("Failed to get repository index")?;
+                    if index.has_conflicts() {
+                        return Ok(false);
+                    }
+                }
                 Err(e) if e.code() == ErrorCode::Conflict => {
                     // Conflicts are expected and should be handled by the caller
                     return Ok(false);
