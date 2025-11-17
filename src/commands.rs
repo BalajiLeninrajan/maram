@@ -63,4 +63,6 @@ pub enum Commands {
         /// Variant name (optional, will prompt if not provided)
         variant_name: Option<String>,
     },
+    /// Sync all branches in the worktree set with their upstreams
+    Sync,
 }

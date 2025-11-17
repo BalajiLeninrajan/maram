@@ -756,3 +756,74 @@ pub fn handle_remove(variant_name: Option<String>) -> Result<()> {
 
     Ok(())
 }
+
+pub fn handle_sync() -> Result<()> {
+    let worktree_set = WorktreeSet::find_current()?;
+    let repo = GitRepo::open_from_current_dir()?;
+    let base_branch = worktree_set.metadata.branch_name.clone();
+
+    let upstream = repo.get_upstream_branch(&base_branch)?;
+    let upstream_branch = upstream.ok_or_else(|| {
+        anyhow::anyhow!(
+            "Base branch '{}' has no upstream configured. Set an upstream with: git branch --set-upstream-to=<remote>/<branch> {}",
+            base_branch,
+            base_branch
+        )
+    })?;
+
+    let base_path = worktree_set.metadata.base_path.clone();
+    run_with_spinner(
+        format!("Rebasing base branch '{}' onto '{}'...", base_branch, upstream_branch),
+        format!("Rebased base branch '{}' onto '{}'", base_branch, upstream_branch),
+        || repo.rebase_branch(&base_path, &base_branch, &upstream_branch),
+    )
+    .with_context(|| {
+        format!(
+            "To manually resolve conflicts, run:\n  cd {}\n  git rebase {}",
+            base_path.display(),
+            upstream_branch
+        )
+    })?;
+
+    for (index, variant) in worktree_set.metadata.variants.iter().enumerate() {
+        let variant_branch = format_variant_branch(variant, &base_branch);
+        let variant_path = worktree_set
+            .metadata
+            .variant_paths
+            .get(variant)
+            .ok_or_else(|| anyhow::anyhow!("Variant path not found for '{}'", variant))?
+            .clone();
+
+        let variant_upstream = repo.get_upstream_branch(&variant_branch)?;
+        let variant_upstream_branch = variant_upstream.ok_or_else(|| {
+            anyhow::anyhow!(
+                "Variant branch '{}' has no upstream configured. Set an upstream with: git branch --set-upstream-to=<remote>/<branch> {}",
+                variant_branch,
+                variant_branch
+            )
+        })?;
+
+        run_with_spinner(
+            format!(
+                "Rebasing variant '{}' onto '{}' ({}/{})...",
+                variant,
+                variant_upstream_branch,
+                index + 1,
+                worktree_set.metadata.variants.len()
+            ),
+            format!("Rebased variant '{}' onto '{}'", variant, variant_upstream_branch),
+            || repo.rebase_branch(&variant_path, &variant_branch, &variant_upstream_branch),
+        )
+        .with_context(|| {
+            format!(
+                "To manually resolve conflicts, run:\n  cd {}\n  git rebase {}",
+                variant_path.display(),
+                variant_upstream_branch
+            )
+        })?;
+    }
+
+    println!("{}", green("All branches synced successfully"));
+
+    Ok(())
+}

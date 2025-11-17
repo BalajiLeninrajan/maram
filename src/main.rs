@@ -11,7 +11,7 @@ use anyhow::Result;
 use clap::Parser;
 use cli::{
     Cli, handle_add, handle_checkout, handle_create, handle_delete, handle_diff, handle_pick,
-    handle_remove, handle_reset, handle_status,
+    handle_remove, handle_reset, handle_status, handle_sync,
 };
 
 fn main() -> Result<()> {
@@ -35,5 +35,6 @@ fn main() -> Result<()> {
         Commands::Diff { variant1, variant2 } => handle_diff(variant1, variant2),
         Commands::Add { variant_name } => handle_add(variant_name),
         Commands::Remove { variant_name } => handle_remove(variant_name),
+        Commands::Sync => handle_sync(),
     }
 }
