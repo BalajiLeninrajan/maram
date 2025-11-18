@@ -19,9 +19,17 @@ pub struct Cli {
     pub command: Commands,
 }
 
+pub fn green<S: AsRef<str>>(string: S) -> String {
+    style(string.as_ref()).green().to_string()
+}
+
+pub fn red<S: AsRef<str>>(string: S) -> String {
+    style(string.as_ref()).red().to_string()
+}
+
 fn select_from_list(items: &[String], prompt: &str) -> Result<String> {
     if items.is_empty() {
-        anyhow::bail!("No items available to select from");
+        anyhow::bail!("{}", red("No items available to select from"));
     }
 
     let selection = Select::with_theme(&ColorfulTheme::default())
@@ -37,7 +45,13 @@ fn select_worktree_set(repo_name: &str, prompt: &str) -> Result<String> {
     let worktree_sets = WorktreeSet::list_worktree_sets(repo_name)?;
 
     if worktree_sets.is_empty() {
-        anyhow::bail!("No worktree sets found for repository '{}'", repo_name);
+        anyhow::bail!(
+            "{}",
+            red(format!(
+                "No worktree sets found for repository '{}'",
+                repo_name
+            ))
+        );
     }
 
     select_from_list(&worktree_sets, prompt)
@@ -113,18 +127,10 @@ fn drop_into_shell(target_dir: &std::path::Path) -> Result<()> {
         })?;
 
     if !status.success() {
-        anyhow::bail!("Shell exited with a non-zero status");
+        anyhow::bail!("{}", red("Shell exited with a non-zero status"));
     }
 
     Ok(())
-}
-
-fn green<S: AsRef<str>>(string: S) -> String {
-    style(string.as_ref()).green().to_string()
-}
-
-fn red<S: AsRef<str>>(string: S) -> String {
-    style(string.as_ref()).red().to_string()
 }
 
 fn run_with_spinner<F, T>(
@@ -183,10 +189,11 @@ pub fn handle_create(
     let existing_sets = WorktreeSet::list_worktree_sets(&repo_name)?;
     if existing_sets.contains(&branch_name) {
         anyhow::bail!(
-            "Worktree set '{}' already exists. Use 'maram checkout {}' to switch to it, or 'maram delete {}' to remove it first.",
-            branch_name,
-            branch_name,
-            branch_name
+            "{}",
+            red(format!(
+                "Worktree set '{}' already exists. Use 'maram checkout {}' to switch to it, or 'maram delete {}' to remove it first.",
+                branch_name, branch_name, branch_name
+            ))
         );
     }
 
@@ -200,8 +207,11 @@ pub fn handle_create(
 
         if !is_empty {
             anyhow::bail!(
-                "Directory '{}' already exists and is not empty. Please remove it manually or use a different branch name.",
-                worktree_dir.display()
+                "{}",
+                red(format!(
+                    "Directory '{}' already exists and is not empty. Please remove it manually or use a different branch name.",
+                    worktree_dir.display()
+                ))
             );
         }
     }
@@ -215,8 +225,11 @@ pub fn handle_create(
     let base_branch = branch_name.clone();
     if repo.branch_exists(&base_branch) {
         anyhow::bail!(
-            "Branch '{}' already exists. Use a different branch name or delete the existing branch first.",
-            base_branch
+            "{}",
+            red(format!(
+                "Branch '{}' already exists. Use a different branch name or delete the existing branch first.",
+                base_branch
+            ))
         );
     }
 
@@ -228,8 +241,11 @@ pub fn handle_create(
     for variant_branch in &variant_branches {
         if repo.branch_exists(variant_branch) {
             anyhow::bail!(
-                "Branch '{}' already exists. Use a different variant name or delete the existing branch first.",
-                variant_branch
+                "{}",
+                red(format!(
+                    "Branch '{}' already exists. Use a different variant name or delete the existing branch first.",
+                    variant_branch
+                ))
             );
         }
     }
@@ -490,8 +506,11 @@ pub fn handle_pick(variant_name: Option<String>) -> Result<()> {
 
     if !worktree_set.is_in_base_worktree()? {
         anyhow::bail!(
-            "The 'pick' command can only be called from the base branch worktree. \
+            "{}",
+            red(
+                "The 'pick' command can only be called from the base branch worktree. \
             Current directory is not in the base worktree. Please navigate to the base worktree first."
+            )
         );
     }
 
@@ -502,7 +521,10 @@ pub fn handle_pick(variant_name: Option<String>) -> Result<()> {
     };
 
     if !worktree_set.metadata.variants.contains(&variant_name) {
-        anyhow::bail!("Variant '{}' does not exist", variant_name);
+        anyhow::bail!(
+            "{}",
+            red(format!("Variant '{}' does not exist", variant_name))
+        );
     }
 
     let base_repo = GitRepo::open(&worktree_set.metadata.base_path)?;
@@ -552,7 +574,7 @@ pub fn handle_pick(variant_name: Option<String>) -> Result<()> {
             red("Cherry-pick has conflicts. Please resolve them manually.")
         );
         println!("After resolving, run: {}", green("git commit"));
-        anyhow::bail!("Cherry-pick failed with conflicts");
+        anyhow::bail!("{}", red("Cherry-pick failed with conflicts"));
     }
 
     base_repo.commit_changes(&format!(
@@ -599,7 +621,7 @@ pub fn handle_diff(variant1: String, variant2: Option<String>) -> Result<()> {
         base_branch.clone()
     } else {
         if !worktree_set.metadata.variants.contains(&variant1) {
-            anyhow::bail!("Variant '{}' not found", variant1);
+            anyhow::bail!("{}", red(format!("Variant '{}' not found", variant1)));
         }
         format_variant_branch(&variant1, &base_branch)
     };
@@ -614,7 +636,7 @@ pub fn handle_diff(variant1: String, variant2: Option<String>) -> Result<()> {
         base_branch
     } else {
         if !worktree_set.metadata.variants.contains(&variant2) {
-            anyhow::bail!("Variant '{}' not found", variant2);
+            anyhow::bail!("{}", red(format!("Variant '{}' not found", variant2)));
         }
         format_variant_branch(&variant2, &base_branch)
     };
@@ -639,8 +661,11 @@ pub fn handle_add(variant_name: Option<String>) -> Result<()> {
 
     if worktree_set.metadata.variants.contains(&variant_name) {
         anyhow::bail!(
-            "Variant '{}' already exists in this worktree set",
-            variant_name
+            "{}",
+            red(format!(
+                "Variant '{}' already exists in this worktree set",
+                variant_name
+            ))
         );
     }
 
@@ -649,8 +674,11 @@ pub fn handle_add(variant_name: Option<String>) -> Result<()> {
 
     if repo.branch_exists(&variant_branch) {
         anyhow::bail!(
-            "Branch '{}' already exists. Use a different variant name or delete the existing branch first.",
-            variant_branch
+            "{}",
+            red(format!(
+                "Branch '{}' already exists. Use a different variant name or delete the existing branch first.",
+                variant_branch
+            ))
         );
     }
 
@@ -706,8 +734,11 @@ pub fn handle_remove(variant_name: Option<String>) -> Result<()> {
 
     if !worktree_set.metadata.variants.contains(&variant_name) {
         anyhow::bail!(
-            "Variant '{}' does not exist in this worktree set",
-            variant_name
+            "{}",
+            red(format!(
+                "Variant '{}' does not exist in this worktree set",
+                variant_name
+            ))
         );
     }
 
@@ -722,7 +753,12 @@ pub fn handle_remove(variant_name: Option<String>) -> Result<()> {
         .metadata
         .variant_paths
         .get(&variant_name)
-        .ok_or_else(|| anyhow::anyhow!("Variant path not found for '{}'", variant_name))?
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "{}",
+                red(format!("Variant path not found for '{}'", variant_name))
+            )
+        })?
         .clone();
 
     run_with_spinner(
@@ -770,8 +806,11 @@ pub fn handle_sync(branch: Option<String>) -> Result<()> {
         .or(worktree_set.metadata.parent_branch.clone())
         .ok_or_else(|| {
             anyhow::anyhow!(
-                "No parent branch specified and no parent_branch found in metadata. \
+                "{}",
+                red(
+                    "No parent branch specified and no parent_branch found in metadata. \
             Provide a branch to sync with: maram sync <branch>"
+                )
             )
         })?;
 
@@ -809,7 +848,12 @@ pub fn handle_sync(branch: Option<String>) -> Result<()> {
             .metadata
             .variant_paths
             .get(variant)
-            .ok_or_else(|| anyhow::anyhow!("Variant path not found for '{}'", variant))?
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "{}",
+                    red(format!("Variant path not found for '{}'", variant))
+                )
+            })?
             .clone();
 
         run_with_spinner(
@@ -825,9 +869,13 @@ pub fn handle_sync(branch: Option<String>) -> Result<()> {
         )
         .with_context(|| {
             format!(
-                "To manually resolve conflicts, run:\n  cd {}\n  git rebase {}",
-                variant_path.display(),
-                parent_branch
+                "To manually resolve conflicts, run:{}\n then run: {} again",
+                green(format!(
+                    "\n  $ cd {}\n  $ git rebase {}",
+                    base_path.display(),
+                    parent_branch
+                )),
+                green("maram sync")
             )
         })?;
     }

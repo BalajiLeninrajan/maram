@@ -1,3 +1,4 @@
+use crate::cli::red;
 use anyhow::{Context, Result};
 use git2::{
     Branch, CherrypickOptions, ErrorCode, IndexAddOption, Repository, Signature,
@@ -102,7 +103,7 @@ impl GitRepo {
             .repo
             .workdir()
             .map(|p| p.to_path_buf())
-            .ok_or_else(|| anyhow::anyhow!("Repository has no working directory"))?;
+            .ok_or_else(|| anyhow::anyhow!("{}", red("Repository has no working directory")))?;
 
         // shell out to binary instead of using git2 to allow for sparse checkouts
         let output = Command::new("git")
@@ -117,10 +118,13 @@ impl GitRepo {
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             anyhow::bail!(
-                "Failed to add worktree for branch {} at {:?}: {}",
-                branch,
-                path,
-                stderr.trim()
+                "{}",
+                red(format!(
+                    "Failed to add worktree for branch {} at {:?}: {}",
+                    branch,
+                    path,
+                    stderr.trim()
+                ))
             );
         }
 
@@ -132,7 +136,7 @@ impl GitRepo {
         let worktree_name = Self::find_worktree_name_by_path(&self.repo, &worktree_path)
             .with_context(|| format!("Failed to find worktree at path: {:?}", path))?;
         let worktree_name = worktree_name
-            .ok_or_else(|| anyhow::anyhow!("Worktree not found at path: {:?}", path))?;
+            .ok_or_else(|| anyhow::anyhow!("{}", red(format!("Worktree not found at path: {:?}", path))))?;
         let worktree = self.repo.find_worktree(&worktree_name).with_context(|| {
             format!(
                 "Failed to load git worktree metadata for `{}`",
@@ -179,9 +183,8 @@ impl GitRepo {
                 Err(err) if err.code() == ErrorCode::NotFound => continue,
                 Err(err) => {
                     return Err(anyhow::anyhow!(
-                        "Failed to open git worktree `{}`: {}",
-                        name,
-                        err
+                        "{}",
+                        red(format!("Failed to open git worktree `{}`: {}", name, err))
                     ));
                 }
             };
@@ -301,9 +304,8 @@ impl GitRepo {
                 }
                 Err(e) => {
                     return Err(anyhow::anyhow!(
-                        "Failed to cherry-pick commit {}: {}",
-                        commit_oid,
-                        e
+                        "{}",
+                        red(format!("Failed to cherry-pick commit {}: {}", commit_oid, e))
                     ));
                 }
             }
@@ -358,7 +360,7 @@ impl GitRepo {
                     .context("Failed to create initial commit")?;
             }
             Err(e) => {
-                return Err(anyhow::anyhow!("Failed to get HEAD: {}", e));
+                return Err(anyhow::anyhow!("{}", red(format!("Failed to get HEAD: {}", e))));
             }
         }
 
@@ -373,7 +375,7 @@ impl GitRepo {
             .context("Failed to execute git diff")?;
 
         if !status.success() {
-            anyhow::bail!("git diff failed");
+            anyhow::bail!("{}", red("git diff failed"));
         }
 
         Ok(())
@@ -398,11 +400,14 @@ impl GitRepo {
                 .ok();
 
             anyhow::bail!(
-                "Failed to rebase {} onto {}\nstdout: {}\nstderr: {}",
-                branch,
-                onto,
-                stdout.trim(),
-                stderr.trim()
+                "{}",
+                red(format!(
+                    "Failed to rebase {} onto {}\nstdout: {}\nstderr: {}",
+                    branch,
+                    onto,
+                    stdout.trim(),
+                    stderr.trim()
+                ))
             );
         }
 
@@ -415,7 +420,7 @@ impl GitRepo {
         let head = worktree_repo.head().context("Failed to get HEAD")?;
         let commit_id = head
             .target()
-            .ok_or_else(|| anyhow::anyhow!("HEAD has no target commit"))?
+            .ok_or_else(|| anyhow::anyhow!("{}", red("HEAD has no target commit")))?
             .to_string();
         Ok(commit_id)
     }
@@ -429,7 +434,7 @@ impl GitRepo {
 
         let branch_name = head
             .shorthand()
-            .ok_or_else(|| anyhow::anyhow!("Branch name is not valid UTF-8"))?
+            .ok_or_else(|| anyhow::anyhow!("{}", red("Branch name is not valid UTF-8")))?
             .to_string();
 
         Ok(Some(branch_name))

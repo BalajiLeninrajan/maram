@@ -1,3 +1,4 @@
+use crate::cli::red;
 use crate::config::Config;
 use crate::metadata::{BASE_VARIANT, WorktreeMetadata};
 use anyhow::{Context, Result};
@@ -65,13 +66,13 @@ impl ZellijSession {
                 "--new-session-with-layout",
                 layout_file
                     .to_str()
-                    .ok_or_else(|| anyhow::anyhow!("Layout path contains invalid UTF-8"))?,
+                    .ok_or_else(|| anyhow::anyhow!("{}", red("Layout path contains invalid UTF-8")))?,
             ])
             .status()
             .context("Failed to execute zellij")?;
 
         if !status.success() {
-            anyhow::bail!("Failed to create zellij session");
+            anyhow::bail!("{}", red("Failed to create zellij session"));
         }
 
         Ok(())
@@ -79,7 +80,7 @@ impl ZellijSession {
 
     pub fn attach_session(&self) -> Result<()> {
         if !self.session_exists() {
-            anyhow::bail!("Session {} does not exist", self.session_name);
+            anyhow::bail!("{}", red(format!("Session {} does not exist", self.session_name)));
         }
 
         let status = Command::new("zellij")
@@ -88,7 +89,7 @@ impl ZellijSession {
             .context("Failed to attach to zellij session")?;
 
         if !status.success() {
-            anyhow::bail!("Failed to attach to zellij session");
+            anyhow::bail!("{}", red("Failed to attach to zellij session"));
         }
 
         Ok(())
@@ -101,7 +102,7 @@ impl ZellijSession {
             .context("Failed to kill zellij session")?;
 
         if !status.success() {
-            anyhow::bail!("Failed to kill zellij session");
+            anyhow::bail!("{}", red("Failed to kill zellij session"));
         }
 
         Ok(())
@@ -131,7 +132,7 @@ impl ZellijSession {
         for (tab_name, path) in tabs {
             let path_str = path
                 .to_str()
-                .ok_or_else(|| anyhow::anyhow!("Path contains invalid UTF-8: {:?}", path))?;
+                .ok_or_else(|| anyhow::anyhow!("{}", red(format!("Path contains invalid UTF-8: {:?}", path))))?;
             layout.push_str(&format!("  tab name=\"{}\" {{\n", tab_name));
             layout.push_str(&format!("    pane cwd=\"{}\"\n", path_str));
             layout.push_str("  }\n");

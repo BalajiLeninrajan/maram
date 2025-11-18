@@ -1,3 +1,4 @@
+use crate::cli::red;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -43,7 +44,7 @@ impl WorktreeMetadata {
         let metadata_path = Self::metadata_dir(worktree_dir).join(METADATA_FILE);
 
         if !metadata_path.exists() {
-            anyhow::bail!("Metadata not found at {:?}", metadata_path);
+            anyhow::bail!("{}", red(format!("Metadata not found at {:?}", metadata_path)));
         }
 
         let content = fs::read_to_string(&metadata_path)

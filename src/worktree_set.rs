@@ -1,3 +1,4 @@
+use crate::cli::red;
 use crate::config::Config;
 use crate::metadata::WorktreeMetadata;
 use anyhow::{Context, Result};
@@ -79,7 +80,7 @@ impl WorktreeSet {
 
     pub fn find_current() -> Result<Self> {
         if !Self::is_in_worktree_set() {
-            anyhow::bail!("This command must be run from within a worktree set directory");
+            anyhow::bail!("{}", red("This command must be run from within a worktree set directory"));
         }
 
         let current_dir = std::env::current_dir()?;
@@ -93,12 +94,12 @@ impl WorktreeSet {
             path = path
                 .parent()
                 .ok_or_else(|| {
-                    anyhow::anyhow!("Reached filesystem root without finding worktree set")
+                    anyhow::anyhow!("{}", red("Reached filesystem root without finding worktree set"))
                 })?
                 .to_path_buf();
         }
 
-        anyhow::bail!("Could not find worktree set metadata");
+        anyhow::bail!("{}", red("Could not find worktree set metadata"));
     }
 
     pub fn is_in_base_worktree(&self) -> Result<bool> {
