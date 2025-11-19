@@ -131,6 +131,7 @@ maram c [branch-name]
 ```
 
 Creates a new worktree set with a base branch and optional variant branches. Each variant gets its own worktree directory and branch.
+You can also use this command to track an existing branch by providing the existing branch's name.
 
 ### Checkout a worktree set
 

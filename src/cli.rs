@@ -223,15 +223,28 @@ pub fn handle_create(
     };
 
     let base_branch = branch_name.clone();
-    if repo.branch_exists(&base_branch) {
-        anyhow::bail!(
-            "{}",
-            red(format!(
-                "Branch '{}' already exists. Use a different branch name or delete the existing branch first.",
+    let should_create_base = if repo.branch_exists(&base_branch) {
+        let use_existing = Confirm::with_theme(&ColorfulTheme::default())
+            .with_prompt(format!(
+                "Branch '{}' already exists. Do you want to use this as your base branch?",
                 base_branch
             ))
-        );
-    }
+            .default(false)
+            .interact()?;
+
+        if !use_existing {
+            anyhow::bail!(
+                "{}",
+                red(format!(
+                    "Branch '{}' already exists. Use a different branch name or delete the existing branch first.",
+                    base_branch
+                ))
+            );
+        }
+        false
+    } else {
+        true
+    };
 
     let variant_branches: Vec<String> = variants
         .iter()
@@ -250,8 +263,9 @@ pub fn handle_create(
         }
     }
 
-    // Create all branches
-    repo.create_branch(&base_branch)?;
+    if should_create_base {
+        repo.create_branch(&base_branch)?;
+    }
     for variant_branch in &variant_branches {
         repo.create_branch(variant_branch)?;
     }
