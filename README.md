@@ -251,5 +251,4 @@ maram reset
 
 ## TODO
 
-- add syncing with parent branch to remove the need for excessive rebasing
 - add support for other multiplexers
