@@ -253,3 +253,6 @@ maram reset
 ## TODO
 
 - add support for other multiplexers
+- terminal completions
+- default commands with args for default variants (to enable cursor 2.0 workflows)
+- polish
