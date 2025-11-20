@@ -97,7 +97,7 @@ default_tab_template {
         if let Some(ref dir) = self.maram_dir {
             let expanded = if dir.starts_with("~/") {
                 let home = dirs::home_dir().context("Failed to find home directory")?;
-                let dir = dir.strip_prefix("~/").unwrap();
+                let dir = dir.strip_prefix("~/").unwrap(); // already checks start with
                 home.join(dir)
             } else {
                 PathBuf::from(dir)

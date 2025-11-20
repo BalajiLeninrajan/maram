@@ -310,7 +310,10 @@ pub fn handle_create(
 
     // Get base commit
     let head = repo.repo().head()?;
-    let base_commit = head.target().unwrap().to_string();
+    let base_commit = head
+        .target()
+        .expect("HEAD must point to a valid commit")
+        .to_string();
 
     // Get current branch as parent_branch
     let parent_branch = repo.get_current_branch()?;
@@ -640,11 +643,10 @@ pub fn handle_diff(variant1: String, variant2: Option<String>) -> Result<()> {
         format_variant_branch(&variant1, &base_branch)
     };
 
-    if variant2.is_none() {
+    let Some(variant2) = variant2 else {
         repo.diff_branches(&base_branch, &branch1)?;
         return Ok(());
-    }
-    let variant2 = variant2.unwrap();
+    };
 
     let branch2 = if variant2 == "base" {
         base_branch
