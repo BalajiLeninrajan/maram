@@ -888,7 +888,7 @@ pub fn handle_sync(branch: Option<String>) -> Result<()> {
                 "To manually resolve conflicts, run:{}\n then run: {} again",
                 green(format!(
                     "\n  $ cd {}\n  $ git rebase {}",
-                    base_path.display(),
+                    variant_path.display(),
                     parent_branch
                 )),
                 green("maram sync")
