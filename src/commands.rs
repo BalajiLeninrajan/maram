@@ -44,12 +44,10 @@ pub enum Commands {
     /// Reset base branch to original state
     #[command(alias = "r")]
     Reset,
-    /// Diff between variants
+    /// Diff between variants (diffs selected variant against base)
     Diff {
-        /// First variant name (defaults to base)
-        variant1: String,
-        /// Second variant name
-        variant2: Option<String>,
+        /// Variant name (optional, will prompt if not provided)
+        variant_name: Option<String>,
     },
     /// Add a new worktree variant to the set
     #[command(alias = "a")]

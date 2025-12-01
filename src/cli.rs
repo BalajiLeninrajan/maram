@@ -628,36 +628,24 @@ pub fn handle_reset() -> Result<()> {
     Ok(())
 }
 
-pub fn handle_diff(variant1: String, variant2: Option<String>) -> Result<()> {
+pub fn handle_diff(variant_name: Option<String>) -> Result<()> {
     let worktree_set = WorktreeSet::find_current()?;
     let repo = GitRepo::open_from_current_dir()?;
 
     let base_branch = worktree_set.metadata.branch_name;
 
-    let branch1 = if variant1 == "base" {
-        base_branch.clone()
+    let variant_name = if let Some(name) = variant_name {
+        name
     } else {
-        if !worktree_set.metadata.variants.contains(&variant1) {
-            anyhow::bail!("{}", red(format!("Variant '{}' not found", variant1)));
-        }
-        format_variant_branch(&variant1, &base_branch)
+        select_from_list(&worktree_set.metadata.variants, "Select variant to diff against base")?
     };
 
-    let Some(variant2) = variant2 else {
-        repo.diff_branches(&base_branch, &branch1)?;
-        return Ok(());
-    };
+    if !worktree_set.metadata.variants.contains(&variant_name) {
+        anyhow::bail!("{}", red(format!("Variant '{}' not found", variant_name)));
+    }
 
-    let branch2 = if variant2 == "base" {
-        base_branch
-    } else {
-        if !worktree_set.metadata.variants.contains(&variant2) {
-            anyhow::bail!("{}", red(format!("Variant '{}' not found", variant2)));
-        }
-        format_variant_branch(&variant2, &base_branch)
-    };
-
-    repo.diff_branches(&branch1, &branch2)?;
+    let variant_branch = format_variant_branch(&variant_name, &base_branch);
+    repo.diff_branches(&base_branch, &variant_branch)?;
 
     Ok(())
 }

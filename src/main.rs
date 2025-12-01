@@ -32,7 +32,7 @@ fn main() -> Result<()> {
         Commands::List => handle_list(),
         Commands::Pick { variant_name } => handle_pick(variant_name),
         Commands::Reset => handle_reset(),
-        Commands::Diff { variant1, variant2 } => handle_diff(variant1, variant2),
+        Commands::Diff { variant_name } => handle_diff(variant_name),
         Commands::Add { variant_name } => handle_add(variant_name),
         Commands::Remove { variant_name } => handle_remove(variant_name),
         Commands::Sync { branch } => handle_sync(branch),

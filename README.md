@@ -186,10 +186,10 @@ Resets the base branch to its original state, discarding any picked changes.
 ### Diff
 
 ```bash
-maram diff <variant1> [variant2]
+maram diff [variant-name]
 ```
 
-Shows the diff between two variants (or between a variant and base if variant2 is omitted).
+Shows the diff between a variant and base.
 
 ### Add a variant
 
