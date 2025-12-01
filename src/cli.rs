@@ -813,6 +813,47 @@ pub fn handle_remove(variant_name: Option<String>) -> Result<()> {
     Ok(())
 }
 
+pub fn handle_flatten() -> Result<()> {
+    let worktree_set = WorktreeSet::find_current()?;
+    let repo = GitRepo::open_from_current_dir()?;
+
+    let base_head = repo.get_head_commit(&worktree_set.metadata.base_path)?;
+    let base_oid = base_head
+        .parse::<git2::Oid>()
+        .context("Failed to parse base HEAD commit")?;
+
+    for (index, variant) in worktree_set.metadata.variants.iter().enumerate() {
+        let variant_path = worktree_set
+            .metadata
+            .variant_paths
+            .get(variant)
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "{}",
+                    red(format!("Variant path not found for '{}'", variant))
+                )
+            })?
+            .clone();
+
+        run_with_spinner(
+            format!(
+                "Flattening variant '{}' ({}/{})...",
+                variant,
+                index + 1,
+                worktree_set.metadata.variants.len()
+            ),
+            format!("Flattened variant '{}'", variant),
+            || {
+                repo.hard_reset_worktree(&variant_path, base_oid)?;
+                Ok(())
+            },
+        )?;
+    }
+
+    println!("{}", green("All variants now match base branch"));
+    Ok(())
+}
+
 pub fn handle_sync(branch: Option<String>) -> Result<()> {
     let mut worktree_set = WorktreeSet::find_current()?;
     let repo = GitRepo::open_from_current_dir()?;

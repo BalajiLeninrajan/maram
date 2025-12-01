@@ -222,6 +222,16 @@ maram l [branch-name]
 Rebases the branches in the current worktree set with the given branch.
 By default if no arguments are passed the parent branch is used.
 
+### Flatten variants
+
+```bash
+maram flatten
+# or
+maram f
+```
+
+Hard resets all variant branches to match the base branch. This is a destructive operation that discards all variant-specific commits.
+
 ## Examples
 
 ```bash

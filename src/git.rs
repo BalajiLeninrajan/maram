@@ -439,4 +439,16 @@ impl GitRepo {
 
         Ok(Some(branch_name))
     }
+
+    pub fn hard_reset_worktree(&self, worktree_path: &Path, commit_id: git2::Oid) -> Result<()> {
+        let worktree_repo = Repository::open(worktree_path)
+            .with_context(|| format!("Failed to open repository at {:?}", worktree_path))?;
+        let commit = worktree_repo
+            .find_commit(commit_id)
+            .with_context(|| format!("Failed to find commit {}", commit_id))?;
+        worktree_repo
+            .reset(commit.as_object(), git2::ResetType::Hard, None)
+            .context("Failed to hard reset worktree")?;
+        Ok(())
+    }
 }

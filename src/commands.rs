@@ -69,4 +69,7 @@ pub enum Commands {
         /// Branch to rebase onto (optional, defaults to parent_branch from metadata)
         branch: Option<String>,
     },
+    /// Flatten all variants to match base branch (hard reset)
+    #[command(alias = "f")]
+    Flatten,
 }
